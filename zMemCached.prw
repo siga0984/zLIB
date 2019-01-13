@@ -1,11 +1,24 @@
 #include "protheus.ch"
 #include "zLibStr2HexDmp.ch"
+#include "zLibVarStream.ch"
 
-/*
+/* ----------------------------------------------------------------------------
 
-Versao para Windows 
+Classe      zMemCached
+Autor       Júlio Wittwer
+Data        01/2019
+Descrição   API Client para o aplicativo MEMCACHED 
+Versão      1.01 
 
-Blog con instrucoes
+Suporta armazenar e recuperar variáveis AdvPL do cache 
+dos tipos "C" Caractere, "N" Numérico, "D" Data, "L" Lógico , 
+e array contento todos estes tipos, inclusive "NIL"
+
+---------------------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------------------
+
+Blog con instrucoes sobre MEMCACHED para Windows 
 
 https://commaster.net/content/installing-memcached-windows
 
@@ -19,8 +32,7 @@ Referencias do protocolo texto
 https://github.com/bfad/Lasso-Memcached-Connector/blob/master/protocol.txt
 https://docs.oracle.com/cd/E17952_01/mysql-5.0-en/ha-memcached-interfaces-protocol.html
 
-*/
-
+---------------------------------------------------------------------------- */
 
 CLASS ZMEMCACHED FROM LONGNAMECLASS
  
@@ -38,25 +50,27 @@ CLASS ZMEMCACHED FROM LONGNAMECLASS
    METHOD GetStats()    // Recupera estatisticas da intancia do memcached
    METHOD Disconnect()  // Desconecta do MemCAched
 
+   METHOD GetErrorStr() // Recupera string com informações de erro 
+
    METHOD Add()         // Acrescenta uma chave / valor ( apenas caso nao exista ) 
    METHOD Replace()     // Troca o valor de uma chave existente
    METHOD Set()         // Armazena uma chave / valor no MemCached 
-
    METHOD Get()         // Recupera o valor de uma chave armazeanda 
    METHOD Delete()      // Remove do cache um valor pela chave 
    METHOD Increment()   // Incrementa um contador pela chave -- valor em string numerica
    METHOD Decrement()   // Decrementa um contador pela chave -- valor em string numerica
    METHOD Flush()       // Limpa todas as variáveis do cache 
+   
 
    // ********* METODOS DE USO INTERNO *********
 
-   METHOD _Store( cMode, cKey , cValue, nOptFlag, nOptExpires )
+   METHOD _Store()
    METHOD _GetTCPError()
   
 ENDCLASS
 
 
-// ===============================================================================
+// ----------------------------------------------------------
 // Constroi o objeto principal do client, ja recebe aqui IP e Porta de conexao
 
 Method NEW( cIp , nPorta ) CLASS ZMEMCACHED
@@ -69,7 +83,7 @@ Method NEW( cIp , nPorta ) CLASS ZMEMCACHED
 ::lVerbose    := .F.
 Return self
 
-// ===============================================================================
+// ----------------------------------------------------------
 // Estabelece a conexao com a instancia do memcached
 
 METHOD Connect() CLASS ZMEMCACHED
@@ -98,7 +112,7 @@ Endif
 
 Return .T.
 
-// ===============================================================================
+// ----------------------------------------------------------
 // Fecha a conexao e finaliza operacoes com a instancia
 
 METHOD Disconnect() CLASS ZMEMCACHED
@@ -136,7 +150,7 @@ Endif
 Return .T.
 
 
-// ===============================================================================
+// ----------------------------------------------------------
 // Recupera a versao da instancia conectada por referencia
 
 METHOD GetVersion( cVersion ) CLASS ZMEMCACHED
@@ -190,9 +204,8 @@ cVersion := ::cResponse
 
 Return .T.
 
-
-// ===============================================================================
-// Recupera estatisticas globais  da instancia
+// ----------------------------------------------------------
+/// Recupera estatisticas globais  da instancia
 
 METHOD GetStats( aStats ) CLASS ZMEMCACHED
 Local nRecv, cRecvBuff := ''
@@ -257,16 +270,17 @@ aSize(aTmp,0)
 
 Return .T.
 
-// ===============================================================================
+// ----------------------------------------------------------
 // Guarda um valor no memcache
 // Mode = set, add, replace, append, prepend
 // cas ainda nao implementado 
 
-METHOD _Store( cMode, cKey , cValue, nOptFlag, nOptExpires ) CLASS ZMEMCACHED
+METHOD _Store( cMode, cKey , xValue, nOptFlag, nOptExpires ) CLASS ZMEMCACHED
 Local cSendCmd := ''
 Local nRecv
 Local cRecvBuff := ''
 Local nSend
+Local cBuffer
 
 ::cError := ''
 ::cResponse := ''
@@ -279,6 +293,17 @@ Endif
 If !( ('.'+cMode+'.') $ ('.set.add.replace.append.prepend.cas.') )
 	::cError := "Invalid Store mode ["+cMode+"]"
 	Return .F.
+Endif
+
+// Tratamento de valores a armazenar
+If valtype(xValue) == 'C'
+	// Valores em String grava no formato original 
+	// Para inclusive permitir Increment() e Decrement() 
+	// em string numérica
+	cBuffer := xValue
+Else
+	// Demais valores sao codificados em Binary String 
+	Var2BinStr(xValue,cBuffer)
 Endif
 
 // <mode> <key> <flags> <exptime> <bytes>
@@ -295,7 +320,7 @@ If nOptExpires == NIL
 else
 	cSendCmd += cValToChar(nOptExpires)+' '
 Endif
-cSendCmd += cValToChar(len(cValue))
+cSendCmd += cValToChar(len(cBuffer))
 cSendCmd += CRLF
 // ------------------------------------------
 
@@ -317,7 +342,7 @@ Endif
 // Etapa 02
 // Envia o valor a ser armazenado 
 
-nSend := ::oTCPConn:Send(cValue+CRLF)
+nSend := ::oTCPConn:Send(cBuffer+CRLF)
 
 If nSend <= 0 
 	::cError := "Memcached client SEND Error."
@@ -327,7 +352,7 @@ Endif
 
 If ::lVerbose
 	Conout("zMemCached:Store("+cMode+") SEND VALUE ")
-	Conout(Str2HexDmp(cValue+CRLF))
+	Conout(Str2HexDmp(cBuffer+CRLF))
 Endif
 
 // Se tudo der certo, aqui eu devo receber um "stored"
@@ -362,7 +387,7 @@ Endif
 Return .T.
 
 
-// ===============================================================================
+// ----------------------------------------------------------
 // Deleta uma chave da instancia conectada                                            
 
 METHOD Delete( cKey ) CLASS ZMEMCACHED
@@ -433,22 +458,22 @@ Return .T.
 // Logo, serão tratados dentro do mesmo metodo interno 
 // que recebe como parametro a instrução de armazenamento 
 
-METHOD Add( cKey , cValue, nOptExpires ) CLASS ZMEMCACHED
-Return ::_Store("add", cKey , cValue, NIL, nOptExpires)
+METHOD Add( cKey , xValue, nOptExpires ) CLASS ZMEMCACHED
+Return ::_Store("add", cKey , xValue, NIL, nOptExpires)
 
-METHOD Replace( cKey , cValue, nOptExpires ) CLASS ZMEMCACHED
-Return ::_Store("replace", cKey , cValue, NIL, nOptExpires)
+METHOD Replace( cKey , xValue, nOptExpires ) CLASS ZMEMCACHED
+Return ::_Store("replace", cKey , xValue, NIL, nOptExpires)
 
-METHOD Set( cKey , cValue, nOptExpires ) CLASS ZMEMCACHED
-Return ::_Store("set", cKey , cValue, NIL, nOptExpires)
+METHOD Set( cKey , xValue, nOptExpires ) CLASS ZMEMCACHED
+Return ::_Store("set", cKey , xValue, NIL, nOptExpires)
 
 
-// ===============================================================================
-// Recupera o valor de uma chave por referencia em cValue
+// ----------------------------------------------------------
+// Recupera o valor de uma chave por referencia em cBuffer
 // Retorna .T. em caso de sucesso na operação 
-// O valor recuperado é colocado por referencia em cValue
+// O valor recuperado é colocado por referencia em cBuffer
 
-METHOD Get( cKey , cValue ) CLASS ZMEMCACHED
+METHOD Get( cKey , xValue ) CLASS ZMEMCACHED
 
 Local cSendCmd := ''
 Local nRecv
@@ -464,7 +489,7 @@ Local nSend
 ::cResponse := ''
 
 // Limpa o retorno por referencia 
-cValue := NIL
+xValue := NIL
 
 If !::oTCPConn:Isconnected()
 	::cError := "Memcached client not connected."
@@ -578,7 +603,7 @@ While !empty(cRecvBuff)
 		
 		// Valor ja foi recebido na integra
 		// Coloca o valor recebido no retorno
-		cValue := left(cRecvBuff,nSize) 
+		cBuffer := left(cRecvBuff,nSize) 
 		
 		// Arranca valor recebido do buffer
 		// Ja desconsiderando o CRLF
@@ -593,7 +618,7 @@ While !empty(cRecvBuff)
 	Else
 		
 		// Se nao tem o valor, ou nao tem o "END", deu merda ?!
-		::cError := "Get() failed - Unexpected ["+cLine+"]"
+		::cError := "Get() failed - Unexpected Buffer ["+cLine+"]"
 		return .F. 
 		
 	Endif
@@ -601,14 +626,25 @@ While !empty(cRecvBuff)
 Enddo
 
 If empty(cRecvBuff)
-	// Se o buffer esta vazio, 	entao nao chegou nenhum valor 
+	// Se nao sobrou nada do buffer, 
 	// A operação de GET foi feita com sucesso, 
-	// naou houve erro, apenas o valor nao foi encontrado. 
+	// Nao houve erro, apenas o valor nao foi encontrado. 
 	Return .T. 
 Endif
 
+
+If left(cBuffer,4) == chr(1)+chr(0)+chr(0)+chr(0)
+    // Se o valor tem a assinatura de uma String Binaria
+    // converte ela para a variavel de tipo correspondente
+	BinStr2Var( cBuffer , xValue )
+Else
+	// Senao , o valor recebido é String
+	// e já está no buffer
+	xValue := cBuffer
+Endif
+
 If left(cRecvBuff,5) == "END" + CHR(13)+Chr(10)
-	// Depois do valor, eu espero um END (CRLF) \
+	// Depois do valor, eu espero um END (CRLF) 
 	// Se nao chegou um END, tem mais de um valor na chave ? ....
 	Return .T. 
 Endif
@@ -616,7 +652,7 @@ Endif
 ::cError := "Get() failed - Unexpected Multiple Value(s)"
 return .F. 
 
-// ===============================================================================
+// ----------------------------------------------------------
 // Incrementa um contador com registro numerico
 // Permite informar o fator de incremento ( default = 1 )
 //
@@ -666,13 +702,13 @@ nRecv := ::oTCPConn:Receive(@cRecvBuff,::nRvcTimeOut)
 ::cResponse := substr(cRecvBuff,1,at(CRLF,cRecvBuff)-1)
 
 If nRecv < 0
-	::cError := "Increment() failed - connection error" + cValTochar(nRecv)
+	::cError := "Increment() FAILED - connection error" + cValTochar(nRecv)
 	::_GetTCPError()
 	Return .F.
 Endif
 
 If nRecv == 0
-	::cError := "Increment() failed - response time-out"
+	::cError := "Increment() FAILED - response time-out"
 	::_GetTCPError()
 	Return .F.
 Endif
@@ -686,8 +722,7 @@ Endif
 cRecvBuff := strtran(cRecvBuff,CRLF,'')
 
 If !(left(cRecvBuff,1)$'0123456789')
-	::cError := "Increment() failed - Error "+cRecvBuff
-	::_GetTCPError()
+	::cError := "Increment() FAILED - Unexpected Buffer "+cRecvBuff
 	Return .F.
 Endif
 
@@ -697,10 +732,9 @@ nValue := val(cRecvBuff)
 Return .T.
 
 
-// ===============================================================================
+// ----------------------------------------------------------
 // Dencrementa um contador com registro numerico
 // Permite informar o fator de incremento ( default = 1 )
-//
 
 Method Decrement( cKey , nValue , nStep ) CLASS ZMEMCACHED
 
@@ -747,13 +781,13 @@ nRecv := ::oTCPConn:Receive(@cRecvBuff,::nRvcTimeOut)
 ::cResponse := substr(cRecvBuff,1,at(CRLF,cRecvBuff)-1)
 
 If nRecv < 0
-	::cError := "Decrement() failed - connection error" + cValTochar(nRecv)
+	::cError := "Decrement() FAILED - connection error" + cValTochar(nRecv)
 	::_GetTCPError()
 	Return .F.
 Endif
 
 If nRecv == 0
-	::cError := "Decrement() failed - response time-out"
+	::cError := "Decrement() FAILED - response time-out"
 	::_GetTCPError()
 	Return .F.
 Endif
@@ -768,7 +802,7 @@ Endif
 cRecvBuff := strtran(cRecvBuff,CRLF,'')
 
 If !(left(cRecvBuff,1)$'0123456789')
-	::cError := "Decrement() failed - Error "+cRecvBuff
+	::cError := "Decrement() FAILED - Uexpected Buffer "+cRecvBuff
 	Return .F.
 Endif
 
@@ -778,7 +812,7 @@ nValue := val(cRecvBuff)
 Return .T.
 
 
-// ===============================================================================
+// ----------------------------------------------------------
 // Apaga todos os registros de memoria da instancia
 
 METHOD Flush() CLASS ZMEMCACHED
@@ -836,7 +870,7 @@ Endif
 Return .T.
 
 
-// ================================================================================
+// ----------------------------------------------------------
 // Acrescenta detalhes de erro TCP na propriedade ::cError
 
 METHOD _GetTCPError() CLASS ZMEMCACHED
@@ -846,5 +880,11 @@ Local nTCPCode := ::oTCPConn:GetError(@cTCPError)
 ::cError += " (TCP ERROR "+cValToChar(nTCPCode)+" : "+cTCPError+" )"
 
 Return
+
+// ----------------------------------------------------------
+// Recupera informações sobre o último erro ocorrido 
+
+METHOD GetErrorStr()  CLASS ZMEMCACHED
+Return ::cError
 
 
