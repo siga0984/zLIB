@@ -26,6 +26,8 @@ CLASS ZISAMFILE FROM LONGNAMECLASS
   DATA nFldCount			// Quantidade de campos do arquivo 
   DATA lBOF					// Flag de inicio de arquivo 
   DATA lEOF					// Flag de final de arquivo 
+  DATA lOpened              // Indica se o arquivo está aberto 
+  DATA lCanWrite            // Arquivo aberto para gravacao 
 
   METHOD GoTo(nRec)		    // Posiciona em um registro informado. 
   METHOD GoTop()			// Posiciona no RECNO 1 da tabela 
@@ -409,11 +411,58 @@ Return
 // ----------------------------------------------------------
 // Cria um arquivo de dados na instancia atual usando a estrutura 
 // do objeto de arquivo de dados informado como parametro 
+// Pode ser infomado um Alias / WorkArea
+// Caso lAppend seja .T., a tabela é aberta em modo exclusivo e para gravação 
+// e os dados são importados
 
-METHOD CreateFrom( _oDBF ) CLASS ZISAMFILE
-Local aStruct := _oDBF:GetStruct()
-Local lOk := ::Create(aStruct)
-Return lOk
+METHOD CreateFrom( _oDBF , lAppend  ) CLASS ZISAMFILE
+Local lFromAlias := .F. 
+Local cAlias := ""
+Local aStruct := {}
+
+If lAppend = NIL ; lAppend := .F. ; Endif
+
+If valtype(_oDBF) == 'C'
+
+	// Se a origem é caractere, só pode ser um ALIAS 
+	lFromAlias := .T. 
+	cAlias := alltrim(upper(_oDBF))
+	If Select(cAlias) < 1 
+		UserException("Alias does not exist - "+cAlias)
+	Endif
+
+	aStruct := (cAlias)->(DbStruct())
+	
+Else
+
+	aStruct := _oDBF:GetStruct()
+
+Endif
+
+If !::Create(aStruct)
+	Return .F.
+Endif
+
+IF lAppend
+
+	// Dados serão apendados na criação 
+	// Abre para escrita exclusiva 
+	
+	If !::Open(.T.,.T.)
+		Return .F.
+	Endif
+
+	// Apenda os dados	
+	IF !::AppendFrom(_oDBF)
+		Return .F.
+	Endif
+
+	// E posiciona no primeiro registro 	
+	::GoTop()
+	
+Endif
+
+Return .T.
 
 
 // ----------------------------------------------------------
@@ -423,48 +472,107 @@ Return lOk
 
 METHOD AppendFrom( _oDBF , lAll, lRest , cFor , cWhile ) CLASS ZISAMFILE
 Local aFromTo := {}
-Local aFrom := _oDBF:GetStruct()
+Local aFrom := {}
 Local nI, nPos, cField
+Local lFromAlias := .F. 
+Local cAlias := ""
 
 DEFAULT lAll  := .T. 
 DEFAULT lRest := .F.
 DEFAULT cFor := ''
 DEFAULT cWhile := ''
+              
+// Primeiro, a tabela tem qye estar aberta
+IF !::lOpened
+	UserException("AppendFrom Failed - Table not opened")
+	Return .F.
+Endif
+
+IF !::lCanWrite
+	UserException("AppendFrom Failed - Table opened for READ ONLY")
+	Return .F.
+Endif
+
+If valtype(_oDBF) == 'C'
+
+	// Se a origem é caractere, só pode ser um ALIAS 
+	lFromAlias := .T. 
+	cAlias := alltrim(upper(_oDBF))
+	If Select(cAlias) < 1 
+		UserException("Alias does not exist - "+cAlias)
+	Endif
+
+	aFrom := (cAlias)->(DbStruct())
+	
+Else
+
+	aFrom := _oDBF:GetStruct()
+
+Endif
 
 // Determina match de campos da origem no destino 
 For nI := 1 to len(aFrom)
 	cField :=  aFrom[nI][1]
 	nPos := ::FieldPos(cField)
-	If nPosTo > 0 
+	If nPos > 0 
 		aadd( aFromTo , { nI , nPos })
 	Endif
 Next
 
-If lAll
-	// Se é paga importar tudo, volta para 
-	// o inicio da tabela
-	_oDBF::GoTop()
+IF lFromAlias
+	
+	// Dados de origem a partir de uma WorkArea
+	
+	If lAll 
+		// Se é para importar tudo, pega desde o primeiro registro 
+		(cAlias)->(DbGoTop())
+	Endif
+	
+	While !(cAlias)->(EOF())
+
+		// Insere um novo registro na tabela atual
+		::Insert()
+
+		// Preenche os campos com os valores da origem
+		For nI := 1 to len(aFromTo)
+			::FieldPut(  aFromTo[nI][2] , (cAlias)->(FieldGet(aFromTo[nI][1]))  )
+		Next
+
+		// Atualiza os valores
+		::Update()
+
+		// Vai para o procimo registro
+		(cAlias)->(DbSkip())
+	Enddo
+	
+Else
+	
+	If lAll 
+		// Se é para importar tudo, pega desde o primeiro registro 
+		_oDBF::GoTop()
+	Endif
+	
+	While !_oDBF:EOF()
+
+		// Insere um novo registro na tabela atual
+		::Insert()
+
+		// Preenche os campos com os valores da origem
+		For nI := 1 to len(aFromTo)
+			::FieldPut(  aFromTo[nI][2] , _oDBF:FieldGet(aFromTo[nI][1])  )
+		Next
+
+		// Atualiza os valores
+		::Update()
+
+		// Vai para o procimo registro
+		_oDBF:Skip()
+
+	Enddo
+	
 Endif
 
-While !_oDBF:EOF()
-
-	// Insere um novo registro na tabela atual
-	::Insert()
-
-	// Preenche os campos com os valores da origem 	
-	For nI := 1 to len(aFromTo)
-		::FieldPut(  aFromTo[nI][2] , _oDBF:FieldGet(aFromTo[nI][1])  )
-	Next
-
-	// Atualiza os valores 
-	::Update()
-
-	// Vai para o procimo registro	
-	_oDBF:Skip()
-	
-Enddo
- 
-Return
+Return .T. 
 
 // ----------------------------------------
 // *** METODO DE USO INTERNO ***
@@ -639,6 +747,8 @@ Return ::lVerbose
 
 METHOD _InitVars() CLASS ZISAMFILE 
 
+::lOpened       := .F. 
+::lCanWrite     := .F. 
 ::nLastError    := 0
 ::cLastError    := ''
 ::lVerbose      := .F. 
