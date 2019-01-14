@@ -49,6 +49,7 @@ CLASS ZMEMCACHED FROM LONGNAMECLASS
    METHOD GetVersion()  // Recupera a versao do MemCached
    METHOD GetStats()    // Recupera estatisticas da intancia do memcached
    METHOD Disconnect()  // Desconecta do MemCAched
+   METHOD IsConnected() // Retorna .T. caso o cache esteja conectado 
 
    METHOD GetErrorStr() // Recupera string com informações de erro 
 
@@ -149,7 +150,15 @@ Endif
 
 Return .T.
 
+// ----------------------------------------------------------
+// Verifica se o objeto está conectado ao MemCached
 
+METHOD IsConnected() CLASS ZMEMCACHED
+If ::oTCPConn != NIL 
+	Return ::oTCPConn:Isconnected()
+Endif
+Return .F. 
+   
 // ----------------------------------------------------------
 // Recupera a versao da instancia conectada por referencia
 
