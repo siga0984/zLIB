@@ -311,6 +311,10 @@ If ( ::lEOF )
 Endif
 
 If nPos > 0 .and. nPos <= ::nFldCount 
+	If ::aStruct[nPos][2] == 'C'
+		// Ajusta tamanho de string com espaços a direita
+		xValue := PadR(xValue,::aStruct[nPos][3])
+	Endif
 	::aPutRecord[nPos] := xValue
 	::lUpdPend := .T. 
 Endif
