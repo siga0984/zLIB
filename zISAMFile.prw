@@ -1,4 +1,6 @@
-#include 'protheus.ch'
+#include 'Protheus.ch'
+#include "zLibDateTime.ch"
+#include "zLibZCompare.ch"
 
 /* ======================================================================================
 Classe       ZISAMFILE
@@ -55,6 +57,7 @@ CLASS ZISAMFILE FROM LONGNAMECLASS
   METHOD CreateFrom()       // Cria tabela a partir da estrutura do objeto inforado 
   METHOD AppendFrom()       // Apenda dados do objeto infdormado na tabela atual 
   METHOD Export()           // Exporta o arquivo para um outro formato
+  METHOD Import()           // Importa dados de arquivo externo em outro formato ( SDF,CSV,JSON )
 
   METHOD GetError() 		// Retorna o Codigo e Descricao por referencia do ultimo erro 
   METHOD GetErrorCode()     // Retorna apenas oCodigo do ultimo erro ocorrido
@@ -75,6 +78,14 @@ CLASS ZISAMFILE FROM LONGNAMECLASS
   METHOD _SkipPrev()        // Le o registro anterior da tabela 
   METHOD _ClearRecord()     // Limpa o conteudo do registro em memoria 
   METHOD _BuildFieldBlock(cFieldExpr) // Cria codeblock com expressao de campos 
+
+  METHOD _ExportSDF()       // Exporta dados para arquivo SDF
+  METHOD _ExportCSV()       // Exporta dados para arquivo CSV
+  METHOD _ExportJSON()      // Exporta dados para arquivo JSON
+ 
+  METHOD _ImportSDF()       // Importa dados de arquivo SDF
+  METHOD _ImportCSV()       // Importa dados de arquivo CSV
+  METHOD _ImportJSON()      // Importa dados de arquivo JSON
  
 ENDCLASS
 
@@ -584,10 +595,6 @@ Return .T.
 // cFileOut = Arquivo de saída 
 
 METHOD Export( cFormat, cFileOut ) CLASS ZISAMFILE
-Local nHOut
-Local nPos
-Local cBuffer := ''
-Local lFirst := .T. 
 
 // Primeiro, a tabela tem qye estar aberta
 IF !::lOpened
@@ -598,249 +605,568 @@ Endif
 cFormat := alltrim(Upper(cFormat))
 
 If cFormat == "SDF" 
-	
-	// Formato SDF
-	// Texto sem delimitador , Campos colocados na ordem da estrutura
-	// CRLF como separador de linhas 
-	// Campo MEMO não é exportado
-	
-	nHOut := fCreate(cFileOut)
-	If nHOut == -1
-		::_SetError(-12,"Output SDF File Create Error - FERROR "+cValToChar(Ferror()))
-		Return .F.
-	Endif
-	
-	::GoTop()
-	
-	While !::Eof()
-		
-		// Monta uma linha de dados
-		cRow := ""
-		
-		For nPos := 1 TO ::nFldCount
-			cTipo := ::aStruct[nPos][2]
-			nTam  := ::aStruct[nPos][3]
-			nDec  := ::aStruct[nPos][4]
-			If cTipo = 'C'
-				cRow += ::FieldGet(nPos)
-			ElseIf cTipo = 'N'
-				cRow += Str(::FieldGet(nPos),nTam,nDec)
-			ElseIf cTipo = 'D'
-				cRow += DTOS(::FieldGet(nPos))
-			ElseIf cTipo = 'L'
-				cRow += IIF(::FieldGet(nPos),'T','F')
-			Endif
-		Next
-		
-		cRow += CRLF
-		cBuffer += cRow
-		
-		If len(cBuffer) > 32000
-			// A cada 32 mil bytes grava em disco
-			fWrite(nHOut,cBuffer)
-			cBuffer := ''
-		Endif
-		
-		::Skip()
-		
-	Enddo
-
-	// Grava flag de EOF
-	cBuffer += Chr(26)
-
-	// Grava resto do buffer que falta 
-	fWrite(nHOut,cBuffer)
-	cBuffer := ''
-	
-	fClose(nHOut)
-	
+	lOk := ::_ExportSDF(cFileOut)	
 ElseIf cFormat == "CSV" 
+	lOk := ::_ExportCSV(cFileOut)	
+ElseIf cFormat == "JSON" 
+	lOk := ::_ExportJSON(cFileOut)	
+Else
+	UserException("Export() ERROR - Formato ["+cFormat+"] não suportado. ")
+Endif
+
+Return lOk
+
+
+// ----------------------------------------------------------
+// Formato SDF
+// Texto sem delimitador , Campos colocados na ordem da estrutura
+// CRLF como separador de linhas
+// Campo MEMO não é exportado
+
+METHOD _ExportSDF( cFileOut ) CLASS ZISAMFILE
+Local nHOut
+Local nPos
+Local cBuffer := ''
+
+nHOut := fCreate(cFileOut)
+If nHOut == -1
+	::_SetError(-12,"Output SDF File Create Error - FERROR "+cValToChar(Ferror()))
+	Return .F.
+Endif
+
+::GoTop()
+
+While !::Eof()
 	
-	// Formato CSV
-	// Strings entre aspas duplas, campos colocados na ordem da estrutura
-	// Virgula como separador de campos, CRLF separador de linhas 
-	// Gera o CSV com Header
-	// Campo MEMO não é exportado
+	// Monta uma linha de dados
+	cRow := ""
 	
-	nHOut := fCreate(cFileOut)
-	If nHOut == -1
-		::_SetError(-12,"Output CSV File Create Error - FERROR "+cValToChar(Ferror()))
-		Return .F.
-	Endif
-	
-	// Primeira linha é o "header" com o nome dos campos 
 	For nPos := 1 TO ::nFldCount
-		If nPos > 1 
-			cBuffer += ','
+		cTipo := ::aStruct[nPos][2]
+		nTam  := ::aStruct[nPos][3]
+		nDec  := ::aStruct[nPos][4]
+		If cTipo = 'C'
+			cRow += ::FieldGet(nPos)
+		ElseIf cTipo = 'N'
+			cRow += Str(::FieldGet(nPos),nTam,nDec)
+		ElseIf cTipo = 'D'
+			cRow += DTOS(::FieldGet(nPos))
+		ElseIf cTipo = 'L'
+			cRow += IIF(::FieldGet(nPos),'T','F')
 		Endif
-		cBuffer += '"'+Alltrim(::aStruct[nPos][1])+'"'
 	Next
-	cBuffer += CRLF
-
-	::GoTop()
 	
-	While !::Eof()
-		
-		// Monta uma linha de dados
-		cRow := ""
-		
-		For nPos := 1 TO ::nFldCount
-			cTipo := ::aStruct[nPos][2]
-			nTam  := ::aStruct[nPos][3]
-			nDec  := ::aStruct[nPos][4]
-			If nPos > 1
-				cRow += ","
-			Endif
-			If cTipo = 'C'
-				// Dobra aspas duplas caso exista dentro do conteudo 
-				cRow += '"' + StrTran(rTrim(::FieldGet(nPos)),'"','""') + '"'
-			ElseIf cTipo = 'N'
-				// Numero trimado 
-				cRow += cValToChar(::FieldGet(nPos))
-			ElseIf cTipo = 'D'
-				// Data em formato AAAAMMDD entre aspas 
-				cRow += '"'+Alltrim(DTOS(::FieldGet(nPos)))+'"'
-			ElseIf cTipo = 'L'
-				// Boooleano true ou false
-				cRow += IIF(::FieldGet(nPos),'true','false')
-			Endif
-		Next
-		
-		cRow += CRLF
-		cBuffer += cRow
-		
-		If len(cBuffer) > 32000
-			// A cada 32 mil bytes grava em disco
-			fWrite(nHOut,cBuffer)
-			cBuffer := ''
-		Endif
-		
-		::Skip()
-		
-	Enddo
-
-	// Grava resto do buffer que falta 
-	If len(cBuffer) > 0 
+	cRow += CRLF
+	cBuffer += cRow
+	
+	If len(cBuffer) > 32000
+		// A cada 32 mil bytes grava em disco
 		fWrite(nHOut,cBuffer)
 		cBuffer := ''
 	Endif
 	
-	fClose(nHOut)
+	::Skip()
 	
-ElseIf cFormat == "JSON" 
+Enddo
 
-	// Formato JSON - Exporta estrutura e dados   
-	// Objeto com 2 propriedades 
-	// header : Array de Arrays, 4 colunas, estrutura da tabela
-	// data : Array de Arrays, cada linha é um registro da tabela, 
-	// campos na ordem da estrutura
-	// -- Campo Memo não é exportado 
+// Grava flag de EOF
+cBuffer += Chr(26)
+
+// Grava resto do buffer que falta
+fWrite(nHOut,cBuffer)
+cBuffer := ''
+
+fClose(nHOut)
+
+Return
+
+// Formato CSV
+// Strings entre aspas duplas, campos colocados na ordem da estrutura
+// Virgula como separador de campos, CRLF separador de linhas 
+// Gera o CSV com Header
+// Campo MEMO não é exportado
+
+METHOD _ExportCSV( cFileOut ) CLASS ZISAMFILE
+Local nHOut
+Local nPos
+Local cBuffer := ''
 	
-	/*
-	{
-	"header": [
-		["cCampo", "cTipo", nTam, nDec], ...
-	],
-	"data": [
-	    ["José", 14, true], ...
-	]
-	}
-	*/
+nHOut := fCreate(cFileOut)
+If nHOut == -1
+	::_SetError(-12,"Output CSV File Create Error - FERROR "+cValToChar(Ferror()))
+	Return .F.
+Endif
 
-	nHOut := fCreate(cFileOut)
-	If nHOut == -1
-		::_SetError(-12,"Output JSON File Create Error - FERROR "+cValToChar(Ferror()))
-		Return .F.
+// Primeira linha é o "header" com o nome dos campos 
+For nPos := 1 TO ::nFldCount
+	If nPos > 1 
+		cBuffer += ','
 	Endif
+	cBuffer += '"'+Alltrim(::aStruct[nPos][1])+'"'
+Next
+cBuffer += CRLF
 
+::GoTop()
 
-	cBuffer += '{' + CRLF
-	cBuffer += '"header": [' + CRLF
-
-	For nPos := 1 to len(::aStruct)
-		If nPos = 1 
-			cBuffer += "["
-		Else
-			cBuffer += '],'+CRLF+'['
-		Endif
-		cBuffer += '"'+Alltrim(::aStruct[nPos][1])+'","'+;
-			::aStruct[nPos][2]+'",'+;
-			cValToChar(::aStruct[nPos][3])+','+;
-			cValToChar(::aStruct[nPos][4])
-	Next
-
-	cBuffer += ']'+CRLF
-	cBuffer += ']' + CRLF
-	cBuffer += ',' + CRLF
-	cBuffer += '"data": [' + CRLF
-		
-	::GoTop()
+While !::Eof()
 	
-	While !::Eof()
-		
-		// Monta uma linha de dados
-		if lFirst
-			cRow := "["
-			lFirst := .F. 
-		Else
-			cRow := "],"+CRLF+"["
+	// Monta uma linha de dados
+	cRow := ""
+	
+	For nPos := 1 TO ::nFldCount
+		cTipo := ::aStruct[nPos][2]
+		nTam  := ::aStruct[nPos][3]
+		nDec  := ::aStruct[nPos][4]
+		If nPos > 1
+			cRow += ","
 		Endif
-				
-		For nPos := 1 TO ::nFldCount
-			cTipo := ::aStruct[nPos][2]
-			nTam  := ::aStruct[nPos][3]
-			nDec  := ::aStruct[nPos][4]
-			If nPos > 1
-				cRow += ","
-			Endif
-			If cTipo = 'C'
-				// Usa Escape sequence de conteudo 
-				// para astas duplas. -- 
-				cRow += '"' + StrTran(rTrim(::FieldGet(nPos)),'"','\"') + '"'
-			ElseIf cTipo = 'N'
-				// Numero trimado 
-				cRow += cValToChar(::FieldGet(nPos))
-			ElseIf cTipo = 'D'
-				// Data em formato AAAAMMDD como string
-				cRow += '"'+Alltrim(DTOS(::FieldGet(nPos)))+'"'
-			ElseIf cTipo = 'L'
-				// Boooleano = true ou false
-				cRow += IIF(::FieldGet(nPos),'true','false')
-			Endif
-		Next
-		
-		cBuffer += cRow
-		
-		If len(cBuffer) > 32000
-			// A cada 32 mil bytes grava em disco
-			fWrite(nHOut,cBuffer)
-			cBuffer := ''
+		If cTipo = 'C'
+			// Dobra aspas duplas caso exista dentro do conteudo 
+			cRow += '"' + StrTran(rTrim(::FieldGet(nPos)),'"','""') + '"'
+		ElseIf cTipo = 'N'
+			// Numero trimado 
+			cRow += cValToChar(::FieldGet(nPos))
+		ElseIf cTipo = 'D'
+			// Data em formato AAAAMMDD entre aspas 
+			cRow += '"'+Alltrim(DTOS(::FieldGet(nPos)))+'"'
+		ElseIf cTipo = 'L'
+			// Boooleano true ou false
+			cRow += IIF(::FieldGet(nPos),'true','false')
 		Endif
-		
-		::Skip()
-		
-	Enddo
+	Next
+	
+	cRow += CRLF
+	cBuffer += cRow
+	
+	If len(cBuffer) > 32000
+		// A cada 32 mil bytes grava em disco
+		fWrite(nHOut,cBuffer)
+		cBuffer := ''
+	Endif
+	
+	::Skip()
+	
+Enddo
 
-	// Termina o JSON
-	cBuffer += ']' + CRLF
-	cBuffer += ']' + CRLF
-	cBuffer += '}' + CRLF
-
-	// Grava o final do buffer
+// Grava resto do buffer que falta 
+If len(cBuffer) > 0 
 	fWrite(nHOut,cBuffer)
 	cBuffer := ''
-	
-	// Fecha o Arquivo 
-	fClose(nHOut)
-	
+Endif
 
+fClose(nHOut)
+
+Return .T. 
+
+
+// Formato JSON - Exporta estrutura e dados   
+// Objeto com 2 propriedades 
+// header : Array de Arrays, 4 colunas, estrutura da tabela
+// data : Array de Arrays, cada linha é um registro da tabela, 
+// campos na ordem da estrutura
+// -- Campo Memo não é exportado 
+
+/* 	{ 	
+"header": [
+	["cCampo", "cTipo", nTam, nDec], ...
+],
+"data": [
+    ["José", 14, true], ...
+] 	}
+*/
+
+METHOD _ExportJSON( cFileOut ) CLASS ZISAMFILE
+Local nHOut
+Local nPos
+Local cBuffer := ''
+Local lFirst := .T.
+
+nHOut := fCreate(cFileOut)
+If nHOut == -1
+	::_SetError(-12,"Output JSON File Create Error - FERROR "+cValToChar(Ferror()))
+	Return .F.
+Endif
+
+
+cBuffer += '{' + CRLF
+cBuffer += '"header": [' + CRLF
+
+For nPos := 1 to len(::aStruct)
+	If nPos = 1
+		cBuffer += "["
+	Else
+		cBuffer += '],'+CRLF+'['
+	Endif
+	cBuffer += '"'+Alltrim(::aStruct[nPos][1])+'","'+;
+	::aStruct[nPos][2]+'",'+;
+	cValToChar(::aStruct[nPos][3])+','+;
+	cValToChar(::aStruct[nPos][4])
+Next
+
+cBuffer += ']'+CRLF
+cBuffer += ']' + CRLF
+cBuffer += ',' + CRLF
+cBuffer += '"data": [' + CRLF
+
+::GoTop()
+
+While !::Eof()
+	
+	// Monta uma linha de dados
+	if lFirst
+		cRow := "["
+		lFirst := .F.
+	Else
+		cRow := "],"+CRLF+"["
+	Endif
+	
+	For nPos := 1 TO ::nFldCount
+		cTipo := ::aStruct[nPos][2]
+		nTam  := ::aStruct[nPos][3]
+		nDec  := ::aStruct[nPos][4]
+		If nPos > 1
+			cRow += ","
+		Endif
+		If cTipo = 'C'
+			// Usa Escape sequence de conteudo
+			// para astas duplas. --
+			cRow += '"' + StrTran(rTrim(::FieldGet(nPos)),'"','\"') + '"'
+		ElseIf cTipo = 'N'
+			// Numero trimado
+			cRow += cValToChar(::FieldGet(nPos))
+		ElseIf cTipo = 'D'
+			// Data em formato AAAAMMDD como string
+			cRow += '"'+Alltrim(DTOS(::FieldGet(nPos)))+'"'
+		ElseIf cTipo = 'L'
+			// Boooleano = true ou false
+			cRow += IIF(::FieldGet(nPos),'true','false')
+		Endif
+	Next
+	
+	cBuffer += cRow
+	
+	If len(cBuffer) > 32000
+		// A cada 32 mil bytes grava em disco
+		fWrite(nHOut,cBuffer)
+		cBuffer := ''
+	Endif
+	
+	::Skip()
+	
+Enddo
+
+// Termina o JSON
+cBuffer += ']' + CRLF
+cBuffer += ']' + CRLF
+cBuffer += '}' + CRLF
+
+// Grava o final do buffer
+fWrite(nHOut,cBuffer)
+cBuffer := ''
+
+// Fecha o Arquivo
+fClose(nHOut)
+
+Return .T.
+
+
+// --------------------------------------------------------------------
+// Importacao de dados de arquivo externo -- Formatos SDF,CDV e JSON   
+
+METHOD Import(cFileIn,cFormat) CLASS ZISAMFILE
+Local lOk
+
+// Primeiro, a tabela tem qye estar aberta
+IF !::lOpened
+	UserException("Import Failed - Table not opened")
+	Return .F.
+Endif
+
+IF !::lCanWrite
+	UserException("Import Failed - Table opened for READ ONLY")
+	Return .F.
+Endif
+
+// Ajusta formato 
+cFormat := alltrim(Upper(cFormat))
+
+If cFormat == "SDF"
+	lOk := ::_ImportSDF(cFileIn)
+ElseIf 	cFormat == "CSV"
+	lOk := ::_ImportCSV(cFileIn)
+ElseIf 	cFormat == "JSON"
+	lOk := ::_ImportJSON(cFileIn)
 Else
+	UserException("Export() ERROR - Formato ["+cFormat+"] não suportado. ")
+Endif
 
-	UserException("Formato ["+cFormat+"] não suportado. ")
+Return lOk 
+
+
+// --------------------------------------------------------------------
+// Importacao de arquivo SDF 
+// A estrutura tem que ser a mesma que o arquivo foi gerado 
+// Nao tengo como validar os campos, mas tenho como fazer uma consistencia 
+// Baseado no tamanho de cada linha com a estrutura atual da tabela. 
+
+METHOD _ImportSDF(cFileIn) CLASS ZISAMFILE
+Local nH ,nFSize
+Local cOneRow := ''
+Local nRowSize := 0
+Local nRows := 0 
+Local nCheck 
+Local nOffset 
+Local cTipo, nTam
+Local cValue, xValue
+
+// Abre o arquivo SDF para leitura 
+nH := FOpen(cFileIn)
+
+If nH == -1
+	::_SetError(-13, "_ImportSDF() ERROR - File Open Failed - FERROR "+cValToChar(ferror()) )
+	Return .F. 
+Endif
+
+// Pega tamanho do arquivo no disco 
+nFSize := fSeek(nH,0,2)
+FSeek(nH,0)
+          
+// Calcula o tamanho de cada linha baseado na estrutura
+For nPos := 1 TO ::nFldCount
+	cTipo := ::aStruct[nPos][2]
+	If cTipo = 'M' 
+		// Ignora campos MEMO 
+		LOOP
+	Endif
+	nTam  := ::aStruct[nPos][3]
+	nRowSize += nTam
+Next
+
+// Cada linha do SDF deve ter o numero de bytes 
+// de acordo com a estrutura da tabela, mais CRLF 
+
+nRowSize += 2
+
+// O resto da divisao ( Modulo ) do tamanho do arquivo 
+// pelo tamanho da linha deve ser 1 -- devido 
+// ao ultimo byte (0x1A / Chr)26)) indicando EOF
+
+nCheck := nFsize % nRowSize
+
+If nCheck <> 1
+
+	::_SetError(-13, "_ImportSDF() ERROR - SDF File Size FERROR MISMATCH" )
+	FClose(nH)
+	Return .F. 
 
 Endif
 
+// Calcula quantas linhas tem no arquivo 
+nRows :=  (nFsize-1) / nRowSize
+
+While nRows > 0 
+
+	// Le uma linha do arquivo 
+    fRead(nH,@cOneRow,nRowSize)
+	
+	// Insere nova linha em branco 
+	::Insert()
+
+	// Le os valores de cOneRow
+	nOffset := 1
+	For nPos := 1 TO ::nFldCount
+
+		cTipo := ::aStruct[nPos][2]
+		
+		If cTipo = 'M' 
+			// Ignora campos MEMO 
+			LOOP
+		Endif
+		
+		nTam  := ::aStruct[nPos][3]
+
+		cValue	:= substr(cOneRow,nOffset,nTam)
+		nOffset += nTam
+		
+		If cTipo == "C"
+			::Fieldput(nPos,cValue)
+		ElseIf cTipo == "N"
+			xValue := Val(cValue)
+			::Fieldput(nPos,xValue)
+		ElseIf cTipo == "D"
+			xValue := STOD(cValue)
+			::Fieldput(nPos,xValue)
+		ElseIf cTipo == "L"
+			xValue := ( cValue = 'T' )
+			::Fieldput(nPos,xValue)
+		Endif		
+
+	Next
+	
+	::Update()
+
+	nRows--
+
+Enddo
+
+FClose(nH)
+
 Return
+
+
+// ----------------------------------------
+// Importacao de arquivo CSV
+// Calculo o tamanho maximo da linha baseado na estrutura da tabela 
+// e passo a ler o arquivo em blocos, parseando o conteúdo lido em memória
+// Comparo o Header com os campos da estrutura
+
+METHOD _ImportCSV(cFileIn) CLASS ZISAMFILE
+Local nH , nFSize
+Local cBuffer := '' , cTemp := ''
+Local nMaxSize := 0
+Local cValue , xValue
+Local cTipo, nTam
+Local nToRead 
+Local nLidos
+Local aHeadCpos := {}
+Local aFileCpos := {}
+
+// Abre o arquivo CSV para leitura 
+nH := FOpen(cFileIn)
+
+If nH == -1
+	::_SetError(-13, "_ImportCSV() ERROR - File Open Failed - FERROR "+cValToChar(ferror()) )
+	Return .F. 
+Endif
+
+// Pega tamanho do arquivo no disco 
+nFSize := fSeek(nH,0,2)
+FSeek(nH,0)
+          
+// Calcula o tamanho máximo de uma linha baseado na estrutura da tabela 
+For nPos := 1 TO ::nFldCount
+	cCampo  := ::aStruct[nPos][1]
+	cTipo := ::aStruct[nPos][2]
+	
+	If cTipo = 'M' 
+		// Ignora campos MEMO 
+		LOOP
+	Endif
+	nTam  := ::aStruct[nPos][3] 
+	// Soma 3 ao tamanho de cada coluna
+	// DElimitadores + separador 
+	nMaxSize += ( nTam + 3 )
+
+	// Monta a lista de campos baseado na estrutura atual 
+	aadd(aFileCpos , alltrim(upper(cCampo)) )
+Next
+
+// Acrescenta um final de linha
+nMaxSize += 2
+
+// Le a primeira linha - HEader com os campos 
+// Logo de cara lê 512 bytes 
+
+nLidos := fRead(nH , @cBuffer , 512 )
+nFSize -= nLidos
+
+// Acha a quebra de linha e remove ela do buffer
+nPos := AT( CRLF , cBuffer )
+cOneRow := left(cBuffer , nPos-1)
+cBuffer := substr(cBuffer,nPos+2)
+
+// Cria array com os campos considerando a virgula como separador
+aHeader := StrTokArr(cOneRow,",")
+
+For nI := 1 to len(aHeader)
+	cField := aHeader[nI]
+	NoQuotes(@cField)
+
+	// Monta a lista de campos baseado no header
+	aadd(aHeadCpos, Alltrim(upper(cField)) )
+Next
+
+// Comparação de Arrays usando zCompare()
+// 0 = Conteúdos idênticos
+// < 0 = Diferentes ( -1 tipo , -2 conteudo ou -3 tamanho de array ) 
+
+If zCompare( aFileCpos , aHeadCpos ) < 0 
+	fClose(nH)	
+	::_SetError(-14, "_ImportCSV() ERROR - Header Fields Mismatch." )
+	Return .F. 
+Endif
+
+// Uma linha deste arquivo NUNCA deve chegar em nMaxSize
+// Ele é calculado assumindo que todas as colunas tem delimitador 
+// e um separador, ele soma isso inclusive na ultima coluna 
+
+While nFSize > 0 .or. !empty(cBuffer)
+    
+	IF len(cBuffer) < nMaxSize .and. nFSize > 0 
+		// SE o buffer em memoria 
+		nToRead := MIN ( nMaxSize * 5 , nFSize ) 
+		nLidos := fRead(nH , @cTemp , nToRead )
+		cTemp := left(cTemp,nLidos)
+		nFSize -= nLidos
+		cBuffer += cTemp
+	Endif	
+
+	// Agora identifica uma linha e faz parser de conteudo 
+
+	nPos := AT( CRLF , cBuffer )
+	cOneRow := left(cBuffer , nPos-1)
+	cBuffer := substr(cBuffer,nPos+2)
+	
+	// Insere nova linha em branco 
+	::Insert()
+
+	For nPos := 1 to ::nFldCount
+	
+		cTipo := ::aStruct[nPos][2]
+		nTam  := ::aStruct[nPos][3]
+
+		If cTipo = 'M' 
+			// Ignora campos MEMO 
+			LOOP
+		Endif
+
+		// Pega procimo valor de campo e remove da linha 
+		cValue := GetNextVal(@cOneRow)
+		
+		If cTipo == "C"
+			// Tipo caractere, coloca valor direto 
+			::Fieldput(nPos,cValue)
+		ElseIf cTipo == "N"
+			// Numérico, converte para numero 
+			xValue := Val(cValue)
+			::Fieldput(nPos,xValue)
+		ElseIf cTipo == "D"
+			// Data , string em formato AAAMMDD , converte para Data 
+			xValue := STOD(cValue)
+			::Fieldput(nPos,xValue)
+		ElseIf cTipo == "L"
+			// Booleano , pode ser Y, T , 1 ou TRUE
+			xValue := Upper(xValue)
+			If xValue = 'Y' .or. xValue = 'T' .or. xValue = '1' .or. xValue = 'TRUE'
+				::Fieldput(nPos,.T.)
+			Endif
+		Endif		
+
+	Next
+	
+	::Update()
+
+Enddo	
+
+FClose(nH)
+
+Return
+
+// ----------------------------------------
+
+METHOD _ImportJSON(cFileIn) CLASS ZISAMFILE
+UserException("ZISAMFILE:_ImportJSON() NOT IMPLEMENTED.")
+Return .F. 
 
 
 // ----------------------------------------
@@ -1095,4 +1421,58 @@ Next
 cBlockStr := "{|o| "+cBlockStr+"}"
 
 Return cBlockStr
+
+// Remove aspas duplas delimitadoras por referencia
+// Retorna por referencia se a string estava 
+// delimitada por aspas duplas 
+STATIC Function NoQuotes(cQuotStr,lQuoted)
+lQuoted := left(cQuotStr,1) = '"' .and. right(cQuotStr,1) = '"'
+If lQuoted
+	cQuotStr := Substr(cQuotStr,2,len(cQuotStr)-2)	
+	cQuotStr := StrTran(cQuotStr,'""','"')
+Endif
+Return 
+
+STATIC Function GetNextVal(cCSVLine)
+Local lQuoted := .F.
+Local lInAspas := .F.
+Local nI , nT := len(cCSVLine)
+Local cRet := ''
+
+If left(cCSVLine,1) == '"'
+	lQuoted := .T.
+Endif
+
+For nI := 1 to nT
+	cChar := substr(cCSVLine,nI,1)
+	If cChar == ','
+		IF lInAspas
+			cRet += cChar
+		Else
+			cCSVLine := substr(cCSVLine,nI+1)
+			EXIT
+		Endif
+	ElseIF cChar == '"'
+		lInAspas := !lInAspas
+		cRet += cChar
+	Else
+		cRet += cChar
+	Endif
+Next
+
+IF  nI >  nT
+	// Saou do loop sem achar o separador  ","
+	// Logo, a linha acabou
+	cCSVLine := ""
+Endif
+
+If lQuoted
+	// Remove aspas antes e depois
+	// Troca escape sequence de aspas [""] por ["]
+	NoQuotes(@cRet)
+Endif
+
+Return cRet
+
+
 
