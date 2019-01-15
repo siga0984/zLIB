@@ -20,7 +20,6 @@ Observação  A classe usa a implementação de indices em memoria
 CLASS ZMEMFILE FROM ZISAMFILE
 
   DATA cMemFile			    // Nome / Identificador do arquivo de dados na memória 
-  DATA lOpened              // Indica se o arquivo está aberto 
 
   DATA aFileData			// Array com os registros do arquivo 
 
@@ -30,7 +29,6 @@ CLASS ZMEMFILE FROM ZISAMFILE
   DATA aGetRecord			// Array com todas as colunas do registro atual 
   DATA aPutRecord           // Array com campos para update 
   DATA lExclusive           // Arquivo aberto em modo exclusivo ?
-  DATA lCanWrite            // Arquivo aberto para gravacao 
   DATA lUpdPend             // Flag indicando update pendente 
   DATA lSetDeleted          // Filtro de registros deletados ativo 
   DATA nRecno				// Número do registro (RECNO) atualmnete posicionado 
@@ -93,7 +91,6 @@ Return self
 // Por hora apenas a abertura possui tratamento de erro 
 
 METHOD OPEN(lExclusive,lCanWrite) CLASS ZMEMFILE 
-Local nFMode := 0
 
 ::_ResetError()
 

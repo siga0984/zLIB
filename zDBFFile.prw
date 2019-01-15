@@ -62,7 +62,6 @@ CLASS ZDBFFILE FROM ZISAMFILE
 
   DATA cDataFile			// Nome do arquivo de dados
   DATA cMemoFile			// Nome do arquivo memo (DBT/FPT) 
-  DATA lOpened              // Indica se o arquivo está aberto 
 
   DATA cDBFType				// Identificador hexadecimal do tipo do DBF 
   DATA dLastUpd				// Data registrada dentro do arquivo como ultimo UPDATE 
@@ -74,7 +73,6 @@ CLASS ZDBFFILE FROM ZISAMFILE
   DATA aGetRecord			// Array com todas as colunas do registro atual 
   DATA aPutRecord           // Array com campos para update 
   DATA lExclusive           // Arquivo aberto em modo exclusivo ?
-  DATA lCanWrite            // Arquivo aberto para gravacao 
   DATA lUpdPend             // Flag indicando update pendente 
   DATA lDeleted				// Indicador de registro corrente deletado (marcado para deleção ) 
   DATA lSetDeleted          // Filtro de registros deletados ativo 

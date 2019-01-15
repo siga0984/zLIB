@@ -54,6 +54,7 @@ CLASS ZISAMFILE FROM LONGNAMECLASS
 
   METHOD CreateFrom()       // Cria tabela a partir da estrutura do objeto inforado 
   METHOD AppendFrom()       // Apenda dados do objeto infdormado na tabela atual 
+  METHOD Export()           // Exporta o arquivo para um outro formato
 
   METHOD GetError() 		// Retorna o Codigo e Descricao por referencia do ultimo erro 
   METHOD GetErrorCode()     // Retorna apenas oCodigo do ultimo erro ocorrido
@@ -573,6 +574,274 @@ Else
 Endif
 
 Return .T. 
+
+// ----------------------------------------------------------
+// Exporta o arquivo para um outro formato
+// cFormat = Formato a exportar 
+//    SDF
+//    CSV 
+//    JSON
+// cFileOut = Arquivo de saída 
+
+METHOD Export( cFormat, cFileOut ) CLASS ZISAMFILE
+Local nHOut
+Local nPos
+Local cBuffer := ''
+Local lFirst := .T. 
+
+// Primeiro, a tabela tem qye estar aberta
+IF !::lOpened
+	UserException("ZISAMFILE:EXPORT() Failed - Table not opened")
+	Return .F.
+Endif
+
+cFormat := alltrim(Upper(cFormat))
+
+If cFormat == "SDF" 
+	
+	// Formato SDF
+	// Texto sem delimitador , Campos colocados na ordem da estrutura
+	// CRLF como separador de linhas 
+	// Campo MEMO não é exportado
+	
+	nHOut := fCreate(cFileOut)
+	If nHOut == -1
+		::_SetError(-12,"Output SDF File Create Error - FERROR "+cValToChar(Ferror()))
+		Return .F.
+	Endif
+	
+	::GoTop()
+	
+	While !::Eof()
+		
+		// Monta uma linha de dados
+		cRow := ""
+		
+		For nPos := 1 TO ::nFldCount
+			cTipo := ::aStruct[nPos][2]
+			nTam  := ::aStruct[nPos][3]
+			nDec  := ::aStruct[nPos][4]
+			If cTipo = 'C'
+				cRow += ::FieldGet(nPos)
+			ElseIf cTipo = 'N'
+				cRow += Str(::FieldGet(nPos),nTam,nDec)
+			ElseIf cTipo = 'D'
+				cRow += DTOS(::FieldGet(nPos))
+			ElseIf cTipo = 'L'
+				cRow += IIF(::FieldGet(nPos),'T','F')
+			Endif
+		Next
+		
+		cRow += CRLF
+		cBuffer += cRow
+		
+		If len(cBuffer) > 32000
+			// A cada 32 mil bytes grava em disco
+			fWrite(nHOut,cBuffer)
+			cBuffer := ''
+		Endif
+		
+		::Skip()
+		
+	Enddo
+
+	// Grava flag de EOF
+	cBuffer += Chr(26)
+
+	// Grava resto do buffer que falta 
+	fWrite(nHOut,cBuffer)
+	cBuffer := ''
+	
+	fClose(nHOut)
+	
+ElseIf cFormat == "CSV" 
+	
+	// Formato CSV
+	// Strings entre aspas duplas, campos colocados na ordem da estrutura
+	// Virgula como separador de campos, CRLF separador de linhas 
+	// Gera o CSV com Header
+	// Campo MEMO não é exportado
+	
+	nHOut := fCreate(cFileOut)
+	If nHOut == -1
+		::_SetError(-12,"Output CSV File Create Error - FERROR "+cValToChar(Ferror()))
+		Return .F.
+	Endif
+	
+	// Primeira linha é o "header" com o nome dos campos 
+	For nPos := 1 TO ::nFldCount
+		If nPos > 1 
+			cBuffer += ','
+		Endif
+		cBuffer += '"'+Alltrim(::aStruct[nPos][1])+'"'
+	Next
+	cBuffer += CRLF
+
+	::GoTop()
+	
+	While !::Eof()
+		
+		// Monta uma linha de dados
+		cRow := ""
+		
+		For nPos := 1 TO ::nFldCount
+			cTipo := ::aStruct[nPos][2]
+			nTam  := ::aStruct[nPos][3]
+			nDec  := ::aStruct[nPos][4]
+			If nPos > 1
+				cRow += ","
+			Endif
+			If cTipo = 'C'
+				// Dobra aspas duplas caso exista dentro do conteudo 
+				cRow += '"' + StrTran(rTrim(::FieldGet(nPos)),'"','""') + '"'
+			ElseIf cTipo = 'N'
+				// Numero trimado 
+				cRow += cValToChar(::FieldGet(nPos))
+			ElseIf cTipo = 'D'
+				// Data em formato AAAAMMDD entre aspas 
+				cRow += '"'+Alltrim(DTOS(::FieldGet(nPos)))+'"'
+			ElseIf cTipo = 'L'
+				// Boooleano true ou false
+				cRow += IIF(::FieldGet(nPos),'true','false')
+			Endif
+		Next
+		
+		cRow += CRLF
+		cBuffer += cRow
+		
+		If len(cBuffer) > 32000
+			// A cada 32 mil bytes grava em disco
+			fWrite(nHOut,cBuffer)
+			cBuffer := ''
+		Endif
+		
+		::Skip()
+		
+	Enddo
+
+	// Grava resto do buffer que falta 
+	If len(cBuffer) > 0 
+		fWrite(nHOut,cBuffer)
+		cBuffer := ''
+	Endif
+	
+	fClose(nHOut)
+	
+ElseIf cFormat == "JSON" 
+
+	// Formato JSON - Exporta estrutura e dados   
+	// Objeto com 2 propriedades 
+	// header : Array de Arrays, 4 colunas, estrutura da tabela
+	// data : Array de Arrays, cada linha é um registro da tabela, 
+	// campos na ordem da estrutura
+	// -- Campo Memo não é exportado 
+	
+	/*
+	{
+	"header": [
+		["cCampo", "cTipo", nTam, nDec], ...
+	],
+	"data": [
+	    ["José", 14, true], ...
+	]
+	}
+	*/
+
+	nHOut := fCreate(cFileOut)
+	If nHOut == -1
+		::_SetError(-12,"Output JSON File Create Error - FERROR "+cValToChar(Ferror()))
+		Return .F.
+	Endif
+
+
+	cBuffer += '{' + CRLF
+	cBuffer += '"header": [' + CRLF
+
+	For nPos := 1 to len(::aStruct)
+		If nPos = 1 
+			cBuffer += "["
+		Else
+			cBuffer += '],'+CRLF+'['
+		Endif
+		cBuffer += '"'+Alltrim(::aStruct[nPos][1])+'","'+;
+			::aStruct[nPos][2]+'",'+;
+			cValToChar(::aStruct[nPos][3])+','+;
+			cValToChar(::aStruct[nPos][4])
+	Next
+
+	cBuffer += ']'+CRLF
+	cBuffer += ']' + CRLF
+	cBuffer += ',' + CRLF
+	cBuffer += '"data": [' + CRLF
+		
+	::GoTop()
+	
+	While !::Eof()
+		
+		// Monta uma linha de dados
+		if lFirst
+			cRow := "["
+			lFirst := .F. 
+		Else
+			cRow := "],"+CRLF+"["
+		Endif
+				
+		For nPos := 1 TO ::nFldCount
+			cTipo := ::aStruct[nPos][2]
+			nTam  := ::aStruct[nPos][3]
+			nDec  := ::aStruct[nPos][4]
+			If nPos > 1
+				cRow += ","
+			Endif
+			If cTipo = 'C'
+				// Usa Escape sequence de conteudo 
+				// para astas duplas. -- 
+				cRow += '"' + StrTran(rTrim(::FieldGet(nPos)),'"','\"') + '"'
+			ElseIf cTipo = 'N'
+				// Numero trimado 
+				cRow += cValToChar(::FieldGet(nPos))
+			ElseIf cTipo = 'D'
+				// Data em formato AAAAMMDD como string
+				cRow += '"'+Alltrim(DTOS(::FieldGet(nPos)))+'"'
+			ElseIf cTipo = 'L'
+				// Boooleano = true ou false
+				cRow += IIF(::FieldGet(nPos),'true','false')
+			Endif
+		Next
+		
+		cBuffer += cRow
+		
+		If len(cBuffer) > 32000
+			// A cada 32 mil bytes grava em disco
+			fWrite(nHOut,cBuffer)
+			cBuffer := ''
+		Endif
+		
+		::Skip()
+		
+	Enddo
+
+	// Termina o JSON
+	cBuffer += ']' + CRLF
+	cBuffer += ']' + CRLF
+	cBuffer += '}' + CRLF
+
+	// Grava o final do buffer
+	fWrite(nHOut,cBuffer)
+	cBuffer := ''
+	
+	// Fecha o Arquivo 
+	fClose(nHOut)
+	
+
+Else
+
+	UserException("Formato ["+cFormat+"] não suportado. ")
+
+Endif
+
+Return
+
 
 // ----------------------------------------
 // *** METODO DE USO INTERNO ***
