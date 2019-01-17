@@ -82,6 +82,7 @@ CLASS ZISAMFILE FROM LONGNAMECLASS
   METHOD _ExportSDF()       // Exporta dados para arquivo SDF
   METHOD _ExportCSV()       // Exporta dados para arquivo CSV
   METHOD _ExportJSON()      // Exporta dados para arquivo JSON
+  METHOD _ExportXML()       // Exporta dados para arquivo XML 
  
   METHOD _ImportSDF()       // Importa dados de arquivo SDF
   METHOD _ImportCSV()       // Importa dados de arquivo CSV
@@ -592,9 +593,10 @@ Return .T.
 //    SDF
 //    CSV 
 //    JSON
+//    XML
 // cFileOut = Arquivo de saída 
 
-METHOD Export( cFormat, cFileOut ) CLASS ZISAMFILE
+METHOD Export( cFormat, cFileOut , bBlock ) CLASS ZISAMFILE
 
 // Primeiro, a tabela tem qye estar aberta
 IF !::lOpened
@@ -609,7 +611,9 @@ If cFormat == "SDF"
 ElseIf cFormat == "CSV" 
 	lOk := ::_ExportCSV(cFileOut)	
 ElseIf cFormat == "JSON" 
-	lOk := ::_ExportJSON(cFileOut)	
+	lOk := ::_ExportJSON(cFileOut)
+ElseIf cFormat == "XML"
+	lOk := ::_ExportXML(cFileOut)
 Else
 	UserException("Export() ERROR - Formato ["+cFormat+"] não suportado. ")
 Endif
@@ -627,6 +631,8 @@ METHOD _ExportSDF( cFileOut ) CLASS ZISAMFILE
 Local nHOut
 Local nPos
 Local cBuffer := ''
+Local cRow
+Local cTipo,nTam,nDec
 
 nHOut := fCreate(cFileOut)
 If nHOut == -1
@@ -645,6 +651,11 @@ While !::Eof()
 		cTipo := ::aStruct[nPos][2]
 		nTam  := ::aStruct[nPos][3]
 		nDec  := ::aStruct[nPos][4]
+
+		IF cTipo = 'M'
+			Loop
+		Endif
+
 		If cTipo = 'C'
 			cRow += ::FieldGet(nPos)
 		ElseIf cTipo = 'N'
@@ -680,6 +691,7 @@ fClose(nHOut)
 
 Return
 
+// ----------------------------------------------------------
 // Formato CSV
 // Strings entre aspas duplas, campos colocados na ordem da estrutura
 // Virgula como separador de campos, CRLF separador de linhas 
@@ -690,6 +702,8 @@ METHOD _ExportCSV( cFileOut ) CLASS ZISAMFILE
 Local nHOut
 Local nPos
 Local cBuffer := ''
+Local cRow
+Local cTipo,nTam,nDec
 	
 nHOut := fCreate(cFileOut)
 If nHOut == -1
@@ -699,6 +713,9 @@ Endif
 
 // Primeira linha é o "header" com o nome dos campos 
 For nPos := 1 TO ::nFldCount
+	If ::aStruct[nPos][2] == 'M'
+		Loop
+	Endif	
 	If nPos > 1 
 		cBuffer += ','
 	Endif
@@ -717,9 +734,15 @@ While !::Eof()
 		cTipo := ::aStruct[nPos][2]
 		nTam  := ::aStruct[nPos][3]
 		nDec  := ::aStruct[nPos][4]
+
+		IF cTipo = 'M'
+			Loop
+		Endif
+
 		If nPos > 1
 			cRow += ","
 		Endif
+		
 		If cTipo = 'C'
 			// Dobra aspas duplas caso exista dentro do conteudo 
 			cRow += '"' + StrTran(rTrim(::FieldGet(nPos)),'"','""') + '"'
@@ -759,6 +782,7 @@ fClose(nHOut)
 Return .T. 
 
 
+// ----------------------------------------------------------
 // Formato JSON - Exporta estrutura e dados   
 // Objeto com 2 propriedades 
 // header : Array de Arrays, 4 colunas, estrutura da tabela
@@ -780,6 +804,8 @@ Local nHOut
 Local nPos
 Local cBuffer := ''
 Local lFirst := .T.
+Local cRow
+Local cTipo,nTam,nDec
 
 nHOut := fCreate(cFileOut)
 If nHOut == -1
@@ -792,6 +818,9 @@ cBuffer += '{' + CRLF
 cBuffer += '"header": [' + CRLF
 
 For nPos := 1 to len(::aStruct)
+	If ::aStruct[nPos][2] == 'M'
+		LOOP
+	Endif
 	If nPos = 1
 		cBuffer += "["
 	Else
@@ -821,9 +850,15 @@ While !::Eof()
 	Endif
 	
 	For nPos := 1 TO ::nFldCount
+
 		cTipo := ::aStruct[nPos][2]
 		nTam  := ::aStruct[nPos][3]
 		nDec  := ::aStruct[nPos][4]
+
+		IF cTipo = 'M'
+			Loop
+		Endif
+
 		If nPos > 1
 			cRow += ","
 		Endif
@@ -869,6 +904,114 @@ fClose(nHOut)
 
 Return .T.
 
+
+// ----------------------------------------------------------
+// Formato XML - Exporta estrutura e dados   
+// Objeto com 2 array de propriedades : header e data
+// Para economizar espaço, as colunas de dados são nomeadas com as tags col1, col2 ... n
+
+METHOD _ExportXML( cFileOut ) CLASS ZISAMFILE
+Local nHOut
+Local nPos
+Local cBuffer := ''
+Local cRow
+Local cCampo,cTipo,nTam,nDec
+
+
+nHOut := fCreate(cFileOut)
+If nHOut == -1
+	::_SetError(-12,"Output XML File Create Error - FERROR "+cValToChar(Ferror()))
+	Return .F.
+Endif
+
+cBuffer += '<?xml version="1.0" encoding="windows-1252" ?>' + CRLF
+cBuffer += '<table>' + CRLF
+
+cBuffer += '<header>' + CRLF
+
+For nPos := 1 to len(::aStruct)
+
+	If ::aStruct[nPos][2] == 'M'
+		LOOP
+	Endif
+                
+	cBuffer += '<field>'
+    cBuffer += '<name>' +lower(Alltrim(::aStruct[nPos][1]))+ '</name>'
+    cBuffer += '<type>' +::aStruct[nPos][2]+ '</type>'
+    cBuffer += '<size>' +cValToChar(::aStruct[nPos][3])+ '</size>'
+    cBuffer += '<decimal>' +cValToChar(::aStruct[nPos][4])+ '</decimal>'
+    cBuffer += '</field>' + CRLF 
+    
+Next
+
+cBuffer += '</header>' + CRLF
+cBuffer += '<data>' + CRLF
+
+::GoTop()
+
+While !::Eof()
+	
+	// Monta uma linha de dados
+	cRow := '<record id="'+cValToChar(::Recno())+'">'
+	
+	For nPos := 1 TO ::nFldCount
+	
+		cCampo := ::aStruct[nPos][1]
+		cTipo  := ::aStruct[nPos][2]
+		nTam   := ::aStruct[nPos][3]
+		nDec   := ::aStruct[nPos][4]
+
+		IF cTipo = 'M'
+			Loop
+		Endif
+
+	    cRow += '<'+lower(alltrim(cCampo))+'>'
+
+		If cTipo = 'C'
+			// Usa Escape sequence de conteudo
+			// para aspas duplas. --
+			cRow += StrTran(rTrim(::FieldGet(nPos)),'"','&quot;')
+		ElseIf cTipo = 'N'
+			// Numero trimado, com "." ponto deecimal 
+			cRow += cValToChar(::FieldGet(nPos))
+		ElseIf cTipo = 'D'
+			// Data em formato AAAAMMDD 
+			cRow += Alltrim(DTOS(::FieldGet(nPos)))
+		ElseIf cTipo = 'L'
+			// Boooleano = true ou false
+			cRow += IIF(::FieldGet(nPos),'true','false')
+		Endif
+
+	    cRow += '</'+lower(alltrim(cCampo))+'>'
+
+	Next
+	
+	cRow += '</record>' + CRLF 
+
+	cBuffer += cRow
+	
+	If len(cBuffer) > 32000
+		// A cada 32 mil bytes grava em disco
+		fWrite(nHOut,cBuffer)
+		cBuffer := ''
+	Endif
+	
+	::Skip()
+	
+Enddo
+
+// Termina o XML
+cBuffer += '</data>' + CRLF
+cBuffer += '</table>' + CRLF
+
+// Grava o final do buffer
+fWrite(nHOut,cBuffer)
+cBuffer := ''
+
+// Fecha o Arquivo
+fClose(nHOut)
+
+Return .T.
 
 // --------------------------------------------------------------------
 // Importacao de dados de arquivo externo -- Formatos SDF,CDV e JSON   
@@ -1146,7 +1289,7 @@ While nFSize > 0 .or. !empty(cBuffer)
 			::Fieldput(nPos,xValue)
 		ElseIf cTipo == "L"
 			// Booleano , pode ser Y, T , 1 ou TRUE
-			xValue := Upper(xValue)
+			xValue := Upper(cValue)
 			If xValue = 'Y' .or. xValue = 'T' .or. xValue = '1' .or. xValue = 'TRUE'
 				::Fieldput(nPos,.T.)
 			Endif
