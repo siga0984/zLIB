@@ -30,6 +30,8 @@ CLASS ZISAMFILE FROM LONGNAMECLASS
   DATA lEOF					// Flag de final de arquivo 
   DATA lOpened              // Indica se o arquivo está aberto 
   DATA lCanWrite            // Arquivo aberto para gravacao 
+  DATA aGetRecord			// Array com todas as colunas do registro atual 
+  DATA aPutRecord           // Array com campos para update 
 
   METHOD GoTo(nRec)		    // Posiciona em um registro informado. 
   METHOD GoTop()			// Posiciona no RECNO 1 da tabela 
@@ -54,8 +56,8 @@ CLASS ZISAMFILE FROM LONGNAMECLASS
   METHOD CreateIndex()      // Cria um Indice ( em memoria ) para a tabela 
   METHOD ClearIndex()       // Fecha todos os indices
 
-  METHOD CreateFrom()       // Cria tabela a partir da estrutura do objeto inforado 
-  METHOD AppendFrom()       // Apenda dados do objeto infdormado na tabela atual 
+  METHOD CreateFrom()       // Cria tabela a partir da estrutura do objeto ou alias informado
+  METHOD AppendFrom()       // Apenda dados do objeto ou alias informado na tabela atual 
   METHOD Export()           // Exporta o arquivo para um outro formato
   METHOD Import()           // Importa dados de arquivo externo em outro formato ( SDF,CSV,JSON )
 
@@ -1499,6 +1501,8 @@ METHOD _InitVars() CLASS ZISAMFILE
 ::nLastRec      := 0
 ::aStruct       := {}
 ::nFldCount     := 0
+::aGetRecord    := {}
+::aPutRecord    := {}
 
 Return
 

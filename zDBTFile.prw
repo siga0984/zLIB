@@ -13,7 +13,7 @@ Observação  Somente leitura implementada
 
 ========================================================== */
 
-CLASS ZDBTFILE
+CLASS ZDBTFILE FROM LONGNAMECLASS
 
    DATA oDBF
    DATA cFileName

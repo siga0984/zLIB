@@ -70,8 +70,6 @@ CLASS ZDBFFILE FROM ZISAMFILE
   DATA lHasMemo				// Tabela possui campo MEMO ?
   DATA nMemoType            // Tipo de campo MEMO da RDD ( 1 = DBT, 2 = FPT ) 
   DATA cMemoExt             // Identificador (extensao) do tipo do campo MEMO
-  DATA aGetRecord			// Array com todas as colunas do registro atual 
-  DATA aPutRecord           // Array com campos para update 
   DATA lExclusive           // Arquivo aberto em modo exclusivo ?
   DATA lUpdPend             // Flag indicando update pendente 
   DATA lDeleted				// Indicador de registro corrente deletado (marcado para deleção ) 
@@ -434,7 +432,6 @@ _Super:_InitVars()
 ::lExclusive  := .F. 
 ::lCanWrite   := .T. 
 ::dLastUpd    := ctod("")
-::aGetRecord  := {}
 ::aPutRecord  := {}
 ::lUpdPend    := .F. 
 ::lDeleted    := .F. 
@@ -457,6 +454,31 @@ Return ::cDBFType
 
 METHOD GetMemoType()  CLASS ZDBFFILE 
 Return ::nMemoType
+
+// ======================================================================================================
+// Array com os tipos de DBF reconhecidos 
+// O 3o elemento quando .T. indoca se o formato é suportado 
+
+STATIC _aDbTypes := { { '0x02','FoxBASE'                                              , .F. } , ;
+                      { '0x03','FoxBASE+/Dbase III plus, no memo'                     , .T. } , ;  // ####  (No Memo)
+                      { '0x04','dBASE IV or IV w/o memo file'                         , .F. } , ;
+                      { '0x05','dBASE V w/o memo file'                                , .F. } , ;
+                      { '0x30','Visual FoxPro'                                        , .F. } , ;
+                      { '0x31','Visual FoxPro, autoincrement enabled'                 , .F. } , ;
+                      { '0x32','Visual FoxPro, Varchar, Varbinary, or Blob-enabled'   , .F. } , ;
+                      { '0x43','dBASE IV SQL table files, no memo'                    , .F. } , ;
+                      { '0x63','dBASE IV SQL system files, no memo'                   , .F. } , ;
+                      { '0x7B','dBASE IV with memo'                                   , .F. } , ;
+                      { '0x83','FoxBASE+/dBASE III PLUS, with memo'                   , .T. } , ;  // ####  DBT
+                      { '0x8B','dBASE IV with memo'                                   , .F. } , ;
+                      { '0x8E','dBASE IV w. SQL table'                                , .F. } , ;
+                      { '0xCB','dBASE IV SQL table files, with memo'                  , .F. } , ;
+                      { '0xF5','FoxPro 2.x (or earlier) with memo'                    , .T. } , ;  // ####  FPT
+                      { '0xE5','HiPer-Six format with SMT memo file'                  , .F. } , ;
+                      { '0xFB','FoxBASE'                                              , .F. } } 
+
+// ======================================================================================================
+
 
 // ----------------------------------------------------------
 // Retorna a descrição do tipo de arquivo DBF 
@@ -825,6 +847,11 @@ Local nI
 Local cSaveRec := '' , nOffset
 Local nMemoBlock, nNewBlock
 
+If ( ::lEOF )
+	UserException("ZDBFFILE::Update() ERROR -- File is in EOF")
+	Return
+Endif
+
 If !::lUpdPend
 	// Nao tem update pendente, nao faz nada
 	Return
@@ -1022,27 +1049,5 @@ If nBlock > 0
 Endif
 
 Return cMemo
-
-// Array com os tipos de DBF reconhecidos 
-// O 3o elemento quando .T. indoca se o formato é suportado 
-
-STATIC _aDbTypes := { { '0x02','FoxBASE'                                              , .F. } , ;
-                      { '0x03','FoxBASE+/Dbase III plus, no memo'                     , .T. } , ;  // ####  (No Memo)
-                      { '0x04','dBASE IV or IV w/o memo file'                         , .F. } , ;
-                      { '0x05','dBASE V w/o memo file'                                , .F. } , ;
-                      { '0x30','Visual FoxPro'                                        , .F. } , ;
-                      { '0x31','Visual FoxPro, autoincrement enabled'                 , .F. } , ;
-                      { '0x32','Visual FoxPro, Varchar, Varbinary, or Blob-enabled'   , .F. } , ;
-                      { '0x43','dBASE IV SQL table files, no memo'                    , .F. } , ;
-                      { '0x63','dBASE IV SQL system files, no memo'                   , .F. } , ;
-                      { '0x7B','dBASE IV with memo'                                   , .F. } , ;
-                      { '0x83','FoxBASE+/dBASE III PLUS, with memo'                   , .T. } , ;  // ####  DBT
-                      { '0x8B','dBASE IV with memo'                                   , .F. } , ;
-                      { '0x8E','dBASE IV w. SQL table'                                , .F. } , ;
-                      { '0xCB','dBASE IV SQL table files, with memo'                  , .F. } , ;
-                      { '0xF5','FoxPro 2.x (or earlier) with memo'                    , .T. } , ;  // ####  FPT
-                      { '0xE5','HiPer-Six format with SMT memo file'                  , .F. } , ;
-                      { '0xFB','FoxBASE'                                              , .F. } } 
-
 
               

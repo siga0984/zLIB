@@ -1,5 +1,4 @@
 
-
 #ifndef zLibNBin_CH
 
   #define zLibNBin_CH

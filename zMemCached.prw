@@ -105,7 +105,7 @@ Endif
 // Estabelece a conexao com o memcache DB
 iStat := ::oTCPConn:Connect( ::nMemCachePort , ::cMemCacheIP, 100 )
 
-If iStat < 0
+If iStat != 0
 	::cError := "Memcached connection Error ("+cValToChar(iStat)+")"
 	::_GetTCPError()
 	Return .F.
@@ -502,7 +502,7 @@ xValue := NIL
 
 If !::oTCPConn:Isconnected()
 	::cError := "Memcached client not connected."
-	return -1
+	return .F. 
 Endif
 
 // Monta o comando de recuperacao 
@@ -528,13 +528,13 @@ nRecv := ::oTCPConn:Receive(@cRecvBuff,::nRvcTimeOut)
 If nRecv < 0
 	::cError := "Get() failed - connection error" + cValTochar(nRecv)
 	::_GetTCPError()
-	return -1
+	return .F. 
 Endif
 
 If nRecv == 0
 	::cError := "Get() failed - response time-out"
 	::_GetTCPError()
-	return -1
+	return .F. 
 Endif
 
 If ::lVerbose
@@ -550,7 +550,7 @@ While !empty(cRecvBuff)
 	nPos := at(CRLF,cRecvBuff)
 	If nPos < 1
 		::cError := "Get() failed - missing CRLF"
-		return -1
+		return .F. 
 	Endif
 	
 	cLine := left(cRecvBuff,nPos-1)
@@ -586,13 +586,13 @@ While !empty(cRecvBuff)
 			If nRecv < 0
 				::cError := "Get() failed - connection error" + cValTochar(nRecv)
 				::_GetTCPError()
-				return -1
+				return .F. 
 			Endif
 			
 			If nRecv == 0
 				::cError := "Get() failed - response time-out"
 				::_GetTCPError()
-				return -1
+				return .F. 
 			Endif
 			
 			If ::lVerbose

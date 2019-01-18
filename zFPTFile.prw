@@ -20,7 +20,7 @@ para criar um mapa dos espaços livres para reaproveitamento
 			
 ========================================================== */
 
-CLASS ZFPTFILE
+CLASS ZFPTFILE FROM LONGNAMECLASS
 
    DATA oDBF                 // Objeto ZDBFFILE owner do MEMO 
    DATA cFileName            // Nome do arquivo FPT

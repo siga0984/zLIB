@@ -1,39 +1,37 @@
 #include 'Protheus.ch'
 
-STATIC _aMemFiles := {}
-
 /* ===========================================================================
 
-Classe		ZMEMFILE
+Classe		ZTOPFILE
 Autor		Júlio Wittwer
 Data		01/2019
 
-Descrição   Classe de persistencia de arquivos em memória 
+Descrição   Classe de encapsulamento de acecsso a arquivos ISAM do DBAccess
 
 Versao		1.0 
-			-- Arquivos em memória não são compartilhados entre Threads
-			
-Observação  A classe usa a implementação de indices em memoria 
 
+Pendencias :
+
+1) Reimplementar alguns metodos da ZISAMFILE 
+2) Rever mecanismo de LOCK ou trabalhar sob demanda 
+3) Implementar controle de transacionamento 
+			
 =========================================================================== */
 
-CLASS ZMEMFILE FROM ZISAMFILE
+STATIC __TopSeq := 0    // Sequenciador de aberturas de Tabelas para montar o alias 
 
-  DATA cMemFile			    // Nome / Identificador do arquivo de dados na memória 
+CLASS ZTOPFILE FROM ZISAMFILE
 
-  DATA aFileData			// Array com os registros do arquivo 
-
-  DATA dLastUpd				// Data registrada dentro do arquivo como ultimo UPDATE 
-  DATA nRecLength			// Tamanho de cada registro 
+  DATA cFileName		    // Nome / Identificador do arquivo no DBAccess
+  DATA cAlias               // Alias do Arquivo em AdvPL
 
   DATA lExclusive           // Arquivo aberto em modo exclusivo ?
+  DATA lInInsert            // Alias em modo de inserção de registro 
   DATA lUpdPend             // Flag indicando update pendente 
-  DATA lSetDeleted          // Filtro de registros deletados ativo 
-  DATA nRecno				// Número do registro (RECNO) atualmnete posicionado 
 
   // ========================= Metodos de uso público da classe
 
-  METHOD NEW(cFile)			// Construtor 
+  METHOD NEW()              // Construtor 
   METHOD OPEN()				// Abertura da tabela 
   METHOD CLOSE()			// Fecha a tabela 
   METHOD EXISTS()           // Verifica se a tabela existe 
@@ -46,7 +44,6 @@ CLASS ZMEMFILE FROM ZISAMFILE
   METHOD FileName()         // Retorna nome do arquivo aberto 
   METHOD Recno()			// Retorna o numero do registro (RECNO) posicionado 
   METHOD Deleted()			// REtorna .T. caso o registro atual esteja DELETADO ( Marcado para deleção ) 
-  METHOD SetDeleted()       // Liga ou desliga filtro de registros deletados
   
   METHOD Insert()           // Insere um registro em branco no final da tabela
   METHOD Update()           // Atualiza o registro atual na tabela 
@@ -59,8 +56,6 @@ CLASS ZMEMFILE FROM ZISAMFILE
   // ========================= Metodos de uso interno da classe
 
   METHOD _InitVars() 		// Inicializa propriedades do Objeto, no construtor e no CLOSE
-  METHOD _ReadStruct()		// Lê a estrutura do arquivo de dados 
-  METHOD _ReadRecord()		// Le um registro do arquivo de dados
   METHOD _ClearRecord()		// Limpa o registro da memoria (EOF por exemplo) 
 
 ENDCLASS
@@ -68,17 +63,28 @@ ENDCLASS
 // ----------------------------------------------------------
 // Retorna o tipo do arquivo 
 
-METHOD GetFileType() CLASS ZMEMFILE 
-Return "MEMORY"
+METHOD GetFileType() CLASS ZTOPFILE 
+Return "TOPCONN"
 
 // ----------------------------------------------------------
-// Construtor do objeto DBF 
+// Construtor do objeto TOP
 // Apenas recebe o nome do arquivo e inicializa as propriedades
 
-METHOD NEW(cFile) CLASS ZMEMFILE 
+METHOD NEW(cFile) CLASS ZTOPFILE 
 
 ::_InitVars() 
-::cMemFile   := lower(cFile)
+
+// Guarda o nome da tabela 
+::cFileName   := UPPER(cFile)
+
+// Calcula proxima sequencia para alias 
+__TopSeq++
+IF __TopSeq > 99999
+	__TopSeq := 1
+Endif
+
+// Monta o alias para a tabela atual 
+::cAlias   := "TOP"+StrZero(__TopSeq,5)
 
 Return self
 
@@ -88,7 +94,7 @@ Return self
 // Caso retorne .F. , consulte o ultimo erro usando GetErrorStr() / GetErrorCode()
 // Por hora apenas a abertura possui tratamento de erro 
 
-METHOD OPEN(lExclusive,lCanWrite) CLASS ZMEMFILE 
+METHOD OPEN(lExclusive,lCanWrite) CLASS ZTOPFILE 
 
 ::_ResetError()
 
@@ -98,7 +104,7 @@ If ::lOpened
 Endif
 
 IF !::Exists()
-	::_SetError(-6,"Unable to OPEN - MEM File ["+::cMemFile+"] DOES NOT EXIST")
+	::_SetError(-6,"Unable to OPEN - TOP File ["+::cFileName+"] DOES NOT EXIST")
 	Return .F.
 Endif
 
@@ -111,26 +117,43 @@ If lCanWrite .AND. !lExclusive
 	Return .F.
 Endif
 
+// Define modo de abertura de acordo com os parametros
+
+IF lExclusive
+
+	IF lCanWrite
+		USE (::cFileName) ALIAS (::cAlias) EXCLUSIVE NEW VIA "TOPCONN"
+	Else 
+		USE (::cFileName) ALIAS (::cAlias) EXCLUSIVE READONLY NEW VIA "TOPCONN"
+	Endif
+
+Else
+
+	IF lCanWrite
+		USE (::cFileName) ALIAS (::cAlias) SHARED NEW VIA "TOPCONN"
+	Else
+		USE (::cFileName) ALIAS (::cAlias) SHARED READONLY NEW VIA "TOPCONN"
+	Endif
+Endif
+
+If NetErr()
+	::_SetError(-15,"Unable to OPEN - TOP File ["+::cFileName+"] IN "+IIf( lExclsuive,"EXCLUSIVE","SHARED") +" MODE ")
+	Return .F. 
+Endif
+
 // Atualiza propriedades de controle da classe
 ::lExclusive   := lExclusive
 ::lCanWrite    := lCanWrite
 
-If !::_ReadStruct()
-	// Em caso de falha na leitura da estrutura 
-	Return .F.
-Endif
-
 // Cria o array de campos do registro atual 
-// Aloca uma coluna a mais para o Flag de deletado 
-::aGetRecord := Array(::nFldCount+1)
-::aPutRecord := Array(::nFldCount+1)
+::aPutRecord := Array(::nFldCount)
 
 // Seta que o arquivo está aberto 
 ::lOpened := .T. 
 
-// Vai para o topo do arquivo 
-// e Lê o primeiro registro físico 
-::GoTop()
+// Pega a estrutura e o numero de campos
+::aStruct := (::cAlias)->(DBStruct())
+::nFldCount := len(::aStruct)
 
 Return .T. 
 
@@ -140,46 +163,44 @@ Return .T.
 // Limpa as variaveis de controle. 
 // A tabela pode ser aberta novamente pela mesma instancia 
 
-METHOD CLOSE() CLASS ZMEMFILE 
-Local nI
-Local nPos
+METHOD CLOSE() CLASS ZTOPFILE 
 
-// Localiza a estrutura da tabela 
-// e some com ela 
-nPos := ascan(_aMemFiles,{|x| x[1] == ::cMemFile })
-If nPos > 0 
-	_aMemFiles[nPos] := NIL
-	aDel(_aMemFiles,nPos)
-	aSize(_aMemFiles,len(_aMemFiles)-1)
+If !::lOpened
+	// Arquivo ' já está fechado, não faz nada. 
+	Return 
 Endif
 
-// Ao fechar, evapora com os dados da tabela 
-aSize( ::aFileData , 0 ) 
+IF ::lUpdPend    
+	conout("--- WARNING - ZTOPFILE:CLOSE() REQUESTED WITH PENDING UDPATE ---")
+	::Update()
+ElseIf ::lInInsert  
+	conout("--- WARNING - ZTOPFILE:CLOSE() REQUESTED WITH PENDING INSERT ---")
+	::Update()
+Endif
 
-// Fecha também, todos os indices 
+// Fecha todos os indices 
 ::ClearIndex()
 
-// Limpa as propriedades
-::_InitVars()
+// Agora fecha a tabela 
+(::cAlias)->(DBCommit()) 
+(::cAlias)->(DbCloseAreA()) 
 
+// Limpa as propriedades -- inclusive flag de abertura 
+::_InitVars()
 
 Return 
 
-
 // ----------------------------------------------------------\
-// Verifica se a tabela existe na memoria
-METHOD EXISTS() CLASS ZMEMFILE 
-Local nPos
-nPos := ascan(_aMemFiles,{|x| x[1] == ::cMemFile })
-Return nPos > 0 
-
+// Verifica se a tabela existe no banco de dados 
+METHOD EXISTS() CLASS ZTOPFILE 
+Return TCCanOpen(::cFileName)
 
 // ----------------------------------------------------------\
 // Cria a tabela no disco 
 // O nome já foi recebido no construtor 
 // Recebe a estrutura e a partir dela cria a tabela 
 
-METHOD CREATE( aStru ) CLASS ZMEMFILE
+METHOD CREATE( aStru ) CLASS ZTOPFILE
 Local nFields := 0
 Local nI
 
@@ -195,207 +216,176 @@ Endif
 nFields := len(aStru)
 For nI := 1 to nFields
 	If !aStru[nI][2]$"CNDLM"
-		UserException("CREATE ERROR - INVALID FIELD TYPE "+aStru[nI][2]+ " ("+aStru[nI][1]+")" )
+		UserException("ZTOPFILE:CREATE() ERROR - INVALID FIELD TYPE "+aStru[nI][2]+ " ("+aStru[nI][1]+")" )
 	Endif
 	// Apenas Ajusta nome do campo 
 	aStru[nI][1] := Upper(padr(aStru[nI][1],10))
 Next
 
-// Guarda a estrutura do arquivo em array estático 
-// Visivel apenas na Thread / Processo atual 
-aadd( _aMemFiles , { ::cMemFile , aClone(aStru) }  )
+DBCreate(::cFileName , aStru , "TOPCONN")
 
 Return .T. 
-
-// ----------------------------------------------------------
-// Permite ligar filtro de navegação de registros deletados
-// Defaul = desligado
-
-METHOD SetDeleted( lSet ) CLASS ZMEMFILE 
-Local lOldSet := ::lSetDeleted
-If pCount() > 0 
-	::lSetDeleted := lSet
-Endif
-Return lOldSet
-
 
 // ----------------------------------------------------------
 // *** METODO DE USO INTERNO ***
 // Inicializa / Limpa as propriedades padrao do Objeto 
 
-METHOD _InitVars() CLASS ZMEMFILE 
+METHOD _InitVars() CLASS ZTOPFILE 
 
 // Inicialização das propriedades da classe pai
 _Super:_InitVars()
 
-// Inicializa demais propriedades da ZMEMFILE
-::aFileData   := {}
+// Inicializa demais propriedades da ZTOPFILE
 ::lOpened     := .F. 
 ::lExclusive  := .F. 
-::lCanWrite   := .F. 
-::dLastUpd    := ctod("")
+::lCanWrite   := .F.
 ::aPutRecord  := {}
 ::lUpdPend    := .F. 
-::lSetDeleted := .F. 
-::nRecno      := 0
+::lInInsert   := .F. 
 
 Return
 
 // ----------------------------------------------------------
 // Retorna a data do ultimo update feito no arquivo 
 
-METHOD LUPDATE() CLASS ZMEMFILE 
-Return ::dLastUpd
-
-// ----------------------------------------------------------
-// *** METODO DE USO INTERNO ***
-// Lê a estrutura de campos da tabela 
-
-METHOD _ReadStruct() CLASS ZMEMFILE 
-Local nPos
-
-nPos := ascan(_aMemFiles,{|x| x[1] == ::cMemFile })
-
-If nPos > 0 
-	::aStruct := aClone(_aMemFiles[nPos][2])
-	::nFldCount := len(::aStruct)
-	Return .T. 
-Endif
-
-Return .F. 
+METHOD LUPDATE() CLASS ZTOPFILE
+UserException("ZTOPFILE:LUPDATE() NOT IMPLEMENTED")
+Return 
 
 // ----------------------------------------------------------
 // Recupera o conteúdo de um campo da tabela 
 // a partir da posiçao do campo na estrutura
+// TODO - Inserir tratamento caso eu esteja em inserção 
 
-METHOD FieldGet(nPos) CLASS ZMEMFILE 
+METHOD FieldGet(nPos) CLASS ZTOPFILE 
 If nPos > 0 .and. nPos <= ::nFldCount 
-	Return ::aGetRecord[nPos]
+	Return (::cAlias)->(FieldGet(nPos))
 Endif
 Return NIL
-
 
 // ----------------------------------------------------------
 // Atualiza um valor na coluna informada do registro atual 
 // Por hora nao critica nada, apenas coloca o valor no array 
+// Faz isso no array em memoria 
 
-METHOD FieldPut(nPos,xValue) CLASS ZMEMFILE 
+METHOD FieldPut(nPos,xValue) CLASS ZTOPFILE 
 
 If ( !::lCanWrite )
-	UserException("Invalid FieldPut() -- File NOT OPEN for WRITING")
+	UserException("ZTOPFILE::FieldPut() Error -- File NOT OPEN for WRITING")
 Endif
 
 If ( ::lEOF )
-	UserException("Invalid FieldPut() -- File is in EOF")
+	UserException("ZTOPFILE::FieldPut() Error -- File is in EOF")
 Endif
 
 If nPos > 0 .and. nPos <= ::nFldCount 
 	If ::aStruct[nPos][2] == 'C'
 		// Ajusta tamanho de string com espaços a direita
+		// ( Preenche ou trima ) 
 		xValue := PadR(xValue,::aStruct[nPos][3])
 	Endif
+	
 	::aPutRecord[nPos] := xValue
+
+	// Liga flag de update pendente
 	::lUpdPend := .T. 
+	
 Endif
 
 Return NIL
 
 // ----------------------------------------------------------
 // Recupera o nome do arquivo no disco 
-METHOD FileName() CLASS ZMEMFILE 
-Return ::cMemFile
+METHOD FileName() CLASS ZTOPFILE 
+Return ::cFileName
 
 // ----------------------------------------
-// Retorna .T. caso o registro atual esteja deletado 
-METHOD DELETED() CLASS ZMEMFILE 
+// Retorna .T. caso o registro atual esteja deletado  
+// Rever tratamento durante inserção de registro 
+METHOD DELETED() CLASS ZTOPFILE 
 If !::lEOF
-	Return ::aGetRecord[::nFldCount+1]
+	Return (::cAlias)->(Deleted())
 Endif
 Return .F. 
 
 // ----------------------------------------
-// Retorna o tamanho do HEader
-// Baseado na estrutura DBF, o tamanho seria 32 * o tamanho da estrutura 
+// Retorna o tamanho estimado do HEader
+// Baseado na estrutura  o tamanho seria 32 * o tamanho da estrutura 
 // Mais 32 bytes do Header, mais 2 do final da estrutura 
 
-METHOD HEADER() CLASS ZMEMFILE 
+METHOD HEADER() CLASS ZTOPFILE 
 Return ( len(::aStruct) * 32 ) + 32 + 2 
 
 // ----------------------------------------
-// Retorna o tamanho aproximado do arquivo na memoria 
+// Retorna o tamanho aproximado do arquivo 
 // -- Desconsidera campos MEMO 
 
-METHOD FileSize() CLASS ZMEMFILE 
-Local nFileSize := 0 
-nFileSize := ( ::nLastRec * ::nRecLength )  
-Return nFileSize
+METHOD FileSize() CLASS ZTOPFILE
+UserException("ZTOPFILE:FileSize() NOT IMPLEMENTED")
+Return 
 
 // ----------------------------------------
 // Retorna o tamanho de um registro da tabela no arquivo 
 // Cada campo MEMO ocupa 10 bytes 
 
-METHOD RECSIZE() CLASS ZMEMFILE 
-Return ::nRecLength
+METHOD RecSize() CLASS ZTOPFILE 
+UserException("ZTOPFILE:RecSize() NOT IMPLEMENTED")
+Return
 
 // ----------------------------------------
 // Retorna o numero do registro atualmente posicionado
 
-METHOD RECNO() CLASS ZMEMFILE 
-If ::lEOF
-	Return ::nLastRec+1
+METHOD RECNO() CLASS ZTOPFILE 
+If ::lInInsert  
+	conout("--- WARNING - ZTOPFILE:RECNO() REQUESTED WITH PENDING INSERT ---")
+	::Update()
 Endif
-Return ::nRecno 
+Return (::cAlias)->(Recno())
 
 // ----------------------------------------
-// *** METODO DE USO INTERNO ***
-// Lê o registro posicionado no offset de dados atual 
+// Faz o alias atual entrar em modo de inserção pendente 
+// A confirmação da inserção é feita pelo Update()
+METHOD Insert() CLASS ZTOPFILE
 
-METHOD _ReadRecord() CLASS ZMEMFILE 
+If ::lInInsert
+	conout("--- WARNING - ZTOPFILE:Insert() REQUESTED WITH PENDING INSERT ---")
+	::Update()
+Endif
 
-// Copia os dados do array para o registro atual 
-aCopy( ::aFileData[::nRecno], ::aGetRecord )
-
-// Reseta flags de BOF e EOF 
-::lBOF := .F. 
-::lEOF := .F. 
-
-Return .T. 
-
-
-// ----------------------------------------
-// Insere um registro em branco no final da tabela
-// Apos a inserção, voce pode fazer fieldput 
-// e confirmar tudo com UPDATE 
-METHOD Insert() CLASS ZMEMFILE
+// Estou em modo de inserção 
+::lInInsert  := .T. 
 
 // Limpa o conteudo do registro em memoria 
 ::_ClearRecord()
 
-// Insere o registro em branco 
-aadd( ::aFileData , aClone(::aGetRecord) )
-
 // Nao estou em BOF ou EOF, 
-// Estou em modo de inserção de registro
 ::lBOF := .F. 
 ::lEOF := .F. 
-
-// Atualiza contador de registros 
-::nLastRec := len( ::aFileData )
-
-// Recno atual = registro novo 
-::nRecno := ::nLastRec
 
 Return .T. 
 
 // ----------------------------------------
 // Grava as alterações do registro atual na tabela 
 
-METHOD Update() CLASS ZMEMFILE
+METHOD Update() CLASS ZTOPFILE
 Local nI
+Local lHasLock := .F. 
 
 If ( ::lEOF )
-	UserException("ZMEMFILE::Update() ERROR -- File is in EOF")
+	UserException("ZTOPFILE::Update() ERROR -- File is in EOF")
 	Return
+Endif
+
+If ::lInInsert
+
+	// Estou em modo de inserção, insere o registro
+	(::cAlias)->(DBAppend())
+	lHasLock := .T. 
+
+	// Informa que existe update pendente e desliga inserção 
+	::lUpdPend  := .T. 
+	::lInInsert := .F. 
+
 Endif
 
 If !::lUpdPend
@@ -403,15 +393,30 @@ If !::lUpdPend
 	Return
 Endif
 
+If !lHasLock
+
+	If !(::cAlias)->(DbrLock(Recno()))
+		UserException("LOCK FAILED")	
+		Return
+	Endif
+	
+	lHasLock := .T. 
+	
+Endif
+
 For nI := 1 to ::nFldCount
+
 	// Atualiza apenas os campos que receberam conteudo 
-	// Atualiza tambel o registro atual na memoria
+	// Atualiza o registro no SGDB 
 	// E limpa o elemento do array de update pendente 
 	If ::aPutRecord[nI] != NIL 
-		::aFileData[::nRecno][nI] := ::aPutRecord[nI]
-		::aGetRecord[nI] := ::aPutRecord[nI]
+		(::cAlias)->(FieldPut( nI , ::aPutRecord[nI] ))
 		::aPutRecord[nI] := NIL 
 	Endif
+
+	// Ao fazer o update, manda o Flush dos dados 
+	(::cAlias)->(DbCommit())
+	
 Next
 
 // Agora que o registro está atualizado, atualiza os indices 
@@ -420,6 +425,9 @@ aEval(::aIndexes , {|oIndex| oIndex:UpdateKey() })
 // Desliga flag de update pendente 
 ::lUpdPend := .F. 
 
+// solta o lock -- por enquanto nao está preparado para transação 
+(::cAlias)->(DBRUnlock(Recno()))
+
 Return .T. 
 
 // ----------------------------------------------------------
@@ -427,13 +435,10 @@ Return .T.
 // Limpa os campos do registro atual 
 // ( Inicializa todos com os valores DEFAULT ) 
 
-METHOD _ClearRecord()  CLASS ZMEMFILE
+METHOD _ClearRecord()  CLASS ZTOPFILE
 
 // Inicializa com o valor default os campos da estrutura 
 _Super:_ClearRecord()
-
-// Limpa Flag de deletado 
-::aGetRecord[::nFldCount+1] := .F. 
 
 Return
 

@@ -10,6 +10,15 @@ Descrição   Classe de consulta ao DBAccess por Queries
 
 Versao		1.0 
 
+Observações 
+
+Por baixo usa o mecanismo de Queries do DBAccess. 
+Exige uma conexão ativa com o banco de dados -- TCLink()
+Usa sempre a conexão corrente. Cria um alias temporario 
+para mascarar a Query. Ainda não herda do ZISAMFILE, somente possui 
+os métodos suportados por uma Query : OPEN,CLOSE, SKIP, GOTOP 
+Possui SetField() para permitir trocar o tratamento de campos 
+usando por baixo a TCSetField()
 		
 =========================================================================== */
 
