@@ -55,7 +55,7 @@ METHOD NEW(oDBF) CLASS ZMEMINDEX
 ::aRecnoData := {}
 ::nCurrentRow := 0
 ::lSetResync := .F.
-::lVerbose   := .F.
+::lVerbose   := .T.
 Return self
 
 // ----------------------------------------

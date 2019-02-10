@@ -81,7 +81,7 @@ Method NEW( cIp , nPorta ) CLASS ZMEMCACHED
 ::oTCPConn       := tSocketClient():New()
 ::cError      := ''
 ::cResponse   := ''
-::lVerbose    := .F.
+::lVerbose    := .T.
 Return self
 
 // ----------------------------------------------------------
@@ -313,6 +313,11 @@ If valtype(xValue) == 'C'
 Else
 	// Demais valores sao codificados em Binary String 
 	Var2BinStr(xValue,cBuffer)
+	// Release 20190121
+	// Insere um prefixo pra indicar o formato armazenado 
+	// Afinal, eu posso obter uma Binary String e armazenar ela 
+	// no cache como uma String Binária 
+	cBuffer := Stuff(cBuffer , 1 , 0 , "#_BINSTR_#")
 Endif
 
 // <mode> <key> <flags> <exptime> <bytes>
@@ -642,9 +647,11 @@ If empty(cRecvBuff)
 Endif
 
 
-If left(cBuffer,4) == chr(1)+chr(0)+chr(0)+chr(0)
+If left(cBuffer,10) == "#_BINSTR_#"
     // Se o valor tem a assinatura de uma String Binaria
     // converte ela para a variavel de tipo correspondente
+    // Remove os caracteres iniciais para fazer a conversão 
+    cBuffer := Substr(cBuffer,11)
 	BinStr2Var( cBuffer , xValue )
 Else
 	// Senao , o valor recebido é String

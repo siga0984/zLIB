@@ -17,6 +17,7 @@
   #include "zLibStr2HexDmp.ch"
   #include "zLibVarStream.ch"
   #include "zLibZCompare.ch"
+  #include "zFieldDef.ch"
 
 #endif
 

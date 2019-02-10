@@ -81,7 +81,7 @@ CLASS ZDBFFILE FROM ZISAMFILE
     	
   // ========================= Metodos de uso público da classe
 
-  METHOD NEW(cFile)			// Construtor 
+  METHOD NEW()    			// Construtor 
   METHOD OPEN()				// Abertura da tabela 
   METHOD CLOSE()			// Fecha a tabela 
   METHOD EXISTS()           // Verifica se a tabela existe 
@@ -130,10 +130,15 @@ Return "DBF"
 // Construtor do objeto DBF 
 // Apenas recebe o nome do arquivo e inicializa as propriedades
 
-METHOD NEW(cFile) CLASS ZDBFFILE 
+METHOD NEW(cFile,oFileDef) CLASS ZDBFFILE 
 
 ::_InitVars() 
 ::cDataFile   := lower(cFile)
+
+If oFileDef != NIL 
+	// Passa a definição pro IsamFile 
+	::SetFileDef(oFileDef)
+Endif
 
 Return self
 
@@ -295,6 +300,7 @@ Return .F.
 // Cria a tabela no disco 
 // O nome já foi recebido no construtor 
 // Recebe a estrutura e a partir dela cria a tabela 
+// Se o objeto já está atrelado a uma definição, usa a estrutura da definição 
 
 METHOD CREATE( aStru ) CLASS ZDBFFILE 
 Local lHasMemo := .F.
@@ -311,6 +317,13 @@ Endif
 
 If ::lOpened
 	::_SetError(-8,"CREATE ERROR - File Already Opened")
+Endif
+
+If aStru = NIL .AND. ::oFileDef != NIL 
+	// Se a erstrutura nao foi informada 
+	// Mas a tabela tem a definição , 
+	// pega a estrutura da definicao 
+	aStru := ::oFileDef:GetStruct()
 Endif
 
 nFields := len(aStru)

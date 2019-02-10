@@ -32,6 +32,8 @@ CLASS ZISAMFILE FROM LONGNAMECLASS
   DATA lCanWrite            // Arquivo aberto para gravacao 
   DATA aGetRecord			// Array com todas as colunas do registro atual 
   DATA aPutRecord           // Array com campos para update 
+  
+  DATA oFileDef             // Definição extendida do arquivo 
 
   METHOD GoTo(nRec)		    // Posiciona em um registro informado. 
   METHOD GoTop()			// Posiciona no RECNO 1 da tabela 
@@ -67,6 +69,8 @@ CLASS ZISAMFILE FROM LONGNAMECLASS
 
   METHOD SetVerbose()       // Liga ou desliga o modo "verbose" da classe
   METHOD IsVerbose()        // Consulta ao modo verbose
+  
+  METHOD SetFileDef()       // Guarda o objeto da definição do arquivo 
 
 
   // ========================= Metodos de uso interno da classe
@@ -622,6 +626,25 @@ Endif
 
 Return lOk
 
+
+// ----------------------------------------------------------
+// Recebe a definicao extendida da tabela 
+// Com isso eu já tenho a estrutura 
+
+METHOD SetFileDef(oDef)  CLASS ZISAMFILE
+
+IF ::lOpened
+	UserException("SetFileDef Failed - Table already opened")
+	Return .F.
+Endif
+
+// Recebe a definição do arquivo 
+::oFileDef := oDef
+
+// Perga a estrutura da tabela 
+::aStruct := oDef:GetStruct()
+
+Return .T. 
 
 // ----------------------------------------------------------
 // Formato SDF
@@ -1491,7 +1514,7 @@ METHOD _InitVars() CLASS ZISAMFILE
 ::lCanWrite     := .F. 
 ::nLastError    := 0
 ::cLastError    := ''
-::lVerbose      := .F. 
+::lVerbose      := .T. 
 ::bFilter       := NIL
 ::lBof          := .F. 
 ::lEof          := .F. 
@@ -1620,6 +1643,4 @@ If lQuoted
 Endif
 
 Return cRet
-
-
 

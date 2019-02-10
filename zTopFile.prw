@@ -1,4 +1,5 @@
-#include 'Protheus.ch'
+#include 'protheus.ch'
+#include 'zlib.ch'
 
 /* ===========================================================================
 
@@ -28,6 +29,8 @@ CLASS ZTOPFILE FROM ZISAMFILE
   DATA lExclusive           // Arquivo aberto em modo exclusivo ?
   DATA lInInsert            // Alias em modo de inserção de registro 
   DATA lUpdPend             // Flag indicando update pendente 
+  
+  DATA oDBConn              // Driver de conexao com o banco  
 
   // ========================= Metodos de uso público da classe
 
@@ -38,6 +41,7 @@ CLASS ZTOPFILE FROM ZISAMFILE
   METHOD CREATE()           // Cria a tabela no disco 
 
   METHOD GetFileType()      // Tipo do arquivo ("MEMORY")
+  METHOD SetDBConn()        // Conexao com o Banco para uso desta tabela 
 
   METHOD FieldGet( nPos )   // Recupera o conteudo da coluna informada do registro atual 
   METHOD FieldPut( nPos )   // Faz update em uma coluna do registro atual 
@@ -70,7 +74,7 @@ Return "TOPCONN"
 // Construtor do objeto TOP
 // Apenas recebe o nome do arquivo e inicializa as propriedades
 
-METHOD NEW(cFile) CLASS ZTOPFILE 
+METHOD NEW(cFile,oFileDef) CLASS ZTOPFILE 
 
 ::_InitVars() 
 
@@ -86,6 +90,11 @@ Endif
 // Monta o alias para a tabela atual 
 ::cAlias   := "TOP"+StrZero(__TopSeq,5)
 
+If oFileDef != NIL 
+	// Passa a definição pro IsamFile 
+	::SetFileDef(oFileDef)
+Endif
+
 Return self
 
 
@@ -97,6 +106,14 @@ Return self
 METHOD OPEN(lExclusive,lCanWrite) CLASS ZTOPFILE 
 
 ::_ResetError()
+
+If ::oDBConn = NIL 
+	UserException("ZTOPFILE:OPEN() -- DBCONN NOT SET")
+Endif
+
+If !::oDBConn:IsConnected()
+	UserException("ZTOPFILE:OPEN() -- DBCONN NOT CONNECTED")
+Endif
 
 If ::lOpened
 	::_SetError(-1,"File Already Open")
@@ -193,6 +210,15 @@ Return
 // ----------------------------------------------------------\
 // Verifica se a tabela existe no banco de dados 
 METHOD EXISTS() CLASS ZTOPFILE 
+
+If ::oDBConn = NIL 
+	UserException("ZTOPFILE:EXISTS() -- DBCONN NOT SET")
+Endif
+
+If !::oDBConn:IsConnected()
+	UserException("ZTOPFILE:EXISTS() -- DBCONN NOT CONNECTED")
+Endif
+
 Return TCCanOpen(::cFileName)
 
 // ----------------------------------------------------------\
@@ -204,12 +230,27 @@ METHOD CREATE( aStru ) CLASS ZTOPFILE
 Local nFields := 0
 Local nI
 
+If ::oDBConn = NIL 
+	UserException("ZTOPFILE:Create() -- DBCONN NOT SET")
+Endif
+
+If !::oDBConn:IsConnected()
+	UserException("ZTOPFILE:Create() -- DBCONN NOT CONNECTED")
+Endif
+
 If ::EXISTS()
 	::_SetError(-7,"CREATE ERROR - File Already Exists")
 Endif
 
 If ::lOpened
 	::_SetError(-8,"CREATE ERROR - File Already Opened")
+Endif
+
+If aStru = NIL .AND. ::oFileDef != NIL 
+	// Se a erstrutura nao foi informada 
+	// Mas a tabela tem a definição , 
+	// pega a estrutura da definicao 
+	aStru := ::oFileDef:GetStruct()
 Endif
 
 // Valida a estrutura informada
@@ -225,6 +266,12 @@ Next
 DBCreate(::cFileName , aStru , "TOPCONN")
 
 Return .T. 
+
+// ----------------------------------------------------------\
+// Seta o objeto da conexao na tabela 
+METHOD SetDBConn(oDB) CLASS ZTOPFILE
+::oDBConn := oDB
+Return
 
 // ----------------------------------------------------------
 // *** METODO DE USO INTERNO ***

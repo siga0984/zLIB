@@ -33,7 +33,7 @@ CLASS ZMEMFILE FROM ZISAMFILE
 
   // ========================= Metodos de uso público da classe
 
-  METHOD NEW(cFile)			// Construtor 
+  METHOD NEW()    			// Construtor 
   METHOD OPEN()				// Abertura da tabela 
   METHOD CLOSE()			// Fecha a tabela 
   METHOD EXISTS()           // Verifica se a tabela existe 
@@ -75,10 +75,15 @@ Return "MEMORY"
 // Construtor do objeto DBF 
 // Apenas recebe o nome do arquivo e inicializa as propriedades
 
-METHOD NEW(cFile) CLASS ZMEMFILE 
+METHOD NEW(cFile,oFileDef) CLASS ZMEMFILE 
 
 ::_InitVars() 
 ::cMemFile   := lower(cFile)
+
+If oFileDef != NIL 
+	// Passa a definição pro IsamFile 
+	::SetFileDef(oFileDef)
+Endif
 
 Return self
 
@@ -189,6 +194,13 @@ Endif
 
 If ::lOpened
 	::_SetError(-8,"CREATE ERROR - File Already Opened")
+Endif
+
+If aStru = NIL .AND. ::oFileDef != NIL 
+	// Se a erstrutura nao foi informada 
+	// Mas a tabela tem a definição , 
+	// pega a estrutura da definicao 
+	aStru := ::oFileDef:GetStruct()
 Endif
 
 // Valida a estrutura informada
