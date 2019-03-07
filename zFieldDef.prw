@@ -22,21 +22,30 @@ CLASS ZFIELDDEF FROM LONGNAMECLASS
    DATA cLabel                         // Label ou descrição curta do campo 
    DATA cDescr                         // Descrição longa do campo 
    DATA cPicture                       // Mascara de dados do campo 
-   DATA lObrigat                       // Campo ;e de preenchimento obrigatório 
+   DATA lRequired                       // Campo de preenchimento Requiredório -- nao pode estar vazio 
+   DATA lEnabled                       // Indica se o campo habilitado 
+   DATA lVisible                       // Indica se o campo está visivel 
+   DATA lReadOnly                      // Indica se o campo somente pode ser lido -- mas nao editado 
 
    METHOD New()                        // Construtor 
    METHOD SetLabel()                   // Informa label e descrição do campo 
-   METHOD SetObrigat()                 // Seta se o campo é de preenchimento obrigatório 
    METHOD SetPicture()                 // Coloca máscara no campo
    METHOD GetField()                   // Recupera o nome do campo 
    METHOD GetLabel()                   // Recupera o label informado 
    METHOD GetDescr()                   // Recupera a descrição longa do campo 
-   METHOD GetObrigat()                 // Retorna se o campo é de preencimento obrigatorio 
    METHOD GetPicture()                 // Recupera máscara no campo
    METHOD GetType()                    // Recupera o Tipo AdvPL do campo 
    METHOD GetSize()                    // Recupera o tamanho do campo 
    METHOD GetDec()                     // Recupera o numero de casas decimais do campo 
-   METHOD DefaultFalue()               // Recupera o valor do cammpo "Vazio" de acordo com o tipo 
+   METHOD DefaultValue()               // Recupera o valor do cammpo "Vazio" de acordo com o tipo 
+   METHOD SetEnabled()                 // Seta se o campo está habilitado 
+   METHOD SetVisible()                 // Seta se o campo está visivel 
+   METHOD SetReadOnly()                // Seta se o campo é somente leitura ( nao editavel ) 
+   METHOD SetRequired()                 // Seta se o campo é de preenchimento Requiredório 
+   METHOD IsEnabled()                  // Consulta se o campo está habilitado 
+   METHOD IsVisible()                  // Consulta se o campo está visivel 
+   METHOD IsReadOnly()                 // Consulta se o campo somente pode ser lido ( não editável ) 
+   METHOD IsRequired()                 // Retorna se o campo é de preencimento Requiredorio 
    
 ENDCLASS 
 
@@ -53,7 +62,10 @@ METHOD NEW(cFld,cType,nSize,nDec) CLASS ZFIELDDEF
 ::cLabel     := ''
 ::cDescr     := ''
 ::cPicture   := ''
-::lObrigat   := .F. 
+::lRequired   := .F. 
+::lEnabled   := .T. 
+::lVisible   := .T. 
+::lReadOnly  := .F. 
 Return self
 
 
@@ -121,7 +133,7 @@ Return ::nDec
 // [l] falso 
 // [m] String vazia 
 
-METHOD DefaultFalue() CLASS ZFIELDDEF
+METHOD DefaultValue() CLASS ZFIELDDEF
 
 If ::cType  = 'C'
 	Return Space(::nSize)
@@ -139,16 +151,54 @@ Return NIL
 
 
 // ------------------------------------------------------
-// Seta se o campo é de preenchimento obrigatorio
+// Seta se o campo é de preenchimento obrigatorio 
 // ( nao pode ser vazio ) 
 
-METHOD SetObrigat(lSet)  CLASS ZFIELDDEF
-::lObrigat := lSet
+METHOD SetRequired(lSet)  CLASS ZFIELDDEF
+::lRequired := lSet
 Return
 
 // ------------------------------------------------------
-// Recupera o flag de obrigatorio 
+// Recupera o flag de Obrigatorio
 
-METHOD GetObrigat()  CLASS ZFIELDDEF
-Return ::lObrigat
+METHOD IsRequired() CLASS ZFIELDDEF
+Return ::lRequired
+
+
+// ------------------------------------------------------
+
+METHOD SetEnabled(lSet) CLASS ZFIELDDEF
+::lEnabled   := lSet
+Return
+
+
+// ------------------------------------------------------
+
+METHOD SetVisible(lSet) CLASS ZFIELDDEF
+::lVisible   := lSet
+Return
+
+// ------------------------------------------------------
+
+METHOD SetReadOnly(lSet) CLASS ZFIELDDEF
+::lReadOnly   := lSet
+Return
+
+
+// ------------------------------------------------------
+
+METHOD IsEnabled() CLASS ZFIELDDEF
+Return ::lEnabled
+
+
+// ------------------------------------------------------
+
+METHOD IsVisible()  CLASS ZFIELDDEF
+Return ::lVisible
+
+
+// ------------------------------------------------------
+
+METHOD IsReadOnly() CLASS ZFIELDDEF
+Return ::lReadOnly
 

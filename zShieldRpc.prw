@@ -17,8 +17,13 @@ a origem da conexão
 
 =================================================================== */
 
-STATIC _aClientInfo
-STATIC _aServerInfo
+// Variaveis para guardar no lado RPC Server os dados do 
+// Client e do Server RPC 
+
+STATIC _aCliInfo
+STATIC _aSrvInfo
+
+// Chasse client de RPC com encapsulamento de execução 
 
 CLASS ZSHIELDRPC FROM ZRPC
 
@@ -290,11 +295,11 @@ Enddo
 
 cError += CRLF 
 cError += padc(" RPC Server Info ",40,'-') + CRLF  
-aEval(_aServerInfo, {|x| cError += x + CRLF  }  )
+aEval(_aSrvInfo, {|x| cError += x + CRLF  }  )
 
 cError += CRLF 
 cError += padc(" RPC Client Info ",40,'-') + CRLF  
-aEval(_aClientInfo, {|x| cError += x + CRLF  }  )
+aEval(_aCliInfo, {|x| cError += x + CRLF  }  )
 
 // Alimenta Retormo com informações de erro 
 aRet := { .F. , cError }
@@ -314,7 +319,7 @@ Return NIL
 USER Function ZRPCCALLER(aInfo)
 
 // Guarda as informacoes de quem chamou 
-_aClientInfo := aClone(aInfo)
+_aCliInfo := aClone(aInfo)
 
 conout(padc(' RPC Client Info Received ',79,'-'))
 aEval(aInfo,{|x| conout(cValToChar(x))})
@@ -323,9 +328,9 @@ conout('')
 
 // Retorna as minhas informacoes 
 // e guarda no ambiente do RPC Server
-_aServerInfo := _RPCInfo()
+_aSrvInfo := _RPCInfo()
 
-Return aClone(_aServerInfo)
+Return aClone(_aSrvInfo)
 
 // Monta array com informacoes basicas do contexto atual 
 // Usado nas pontas server e client no momento da conexao 

@@ -7,7 +7,7 @@ Classe		ZTOPFILE
 Autor		Júlio Wittwer
 Data		01/2019
 
-Descrição   Classe de encapsulamento de acecsso a arquivos ISAM do DBAccess
+Descrição   Classe de encapsulamento de acesso a arquivos ISAM do DBAccess
 
 Versao		1.0 
 
@@ -29,8 +29,10 @@ CLASS ZTOPFILE FROM ZISAMFILE
   DATA lExclusive           // Arquivo aberto em modo exclusivo ?
   DATA lInInsert            // Alias em modo de inserção de registro 
   DATA lUpdPend             // Flag indicando update pendente 
-  
   DATA oDBConn              // Driver de conexao com o banco  
+  DATA cSqlOrderBy          // Order By para acesso SQL 
+
+  DATA oLogger              // Objeto de log 
 
   // ========================= Metodos de uso público da classe
 
@@ -48,19 +50,34 @@ CLASS ZTOPFILE FROM ZISAMFILE
   METHOD FileName()         // Retorna nome do arquivo aberto 
   METHOD Recno()			// Retorna o numero do registro (RECNO) posicionado 
   METHOD Deleted()			// REtorna .T. caso o registro atual esteja DELETADO ( Marcado para deleção ) 
+  METHOD LastRec()          // Retorna o ultimo registro da tabela 
   
   METHOD Insert()           // Insere um registro em branco no final da tabela
   METHOD Update()           // Atualiza o registro atual na tabela 
+  METHOD UpdStruct()        // Verifica estrutura fisica versus definição 
+  METHOD Search()           // Busca um registro que atenda os criterios informados
 
   METHOD Header() 			// Retorna tamanho em Bytes do Header da Tabela
   METHOD FileSize()         // Retorna o tamanho ocupado pelo arquivo em bytes 
   METHOD RecSize()			// Retorna o tamanho de um registro da tabela 
   METHOD LUpdate()			// Retorna a data interna do arquivo que registra o ultimo update 
+
+  METHOD GoTop()
+  METHOD Skip()
+  METHOD GoTo()	     	    // Posiciona em um registro informado. 
+
+  // Metodos exclusivos para TOP FILE 
+  
+  METHOD SetSQLOrderBy()
+  METHOD GetSQLOrderBy()
+ 
  
   // ========================= Metodos de uso interno da classe
 
   METHOD _InitVars() 		// Inicializa propriedades do Objeto, no construtor e no CLOSE
+  METHOD _ReadRecord()		// Le um registro do arquivo de dados
   METHOD _ClearRecord()		// Limpa o registro da memoria (EOF por exemplo) 
+
 
 ENDCLASS
 
@@ -73,8 +90,13 @@ Return "TOPCONN"
 // ----------------------------------------------------------
 // Construtor do objeto TOP
 // Apenas recebe o nome do arquivo e inicializa as propriedades
+// Inicializa o ZISAMFILE passando a instancia atual 
 
 METHOD NEW(cFile,oFileDef) CLASS ZTOPFILE 
+_Super:New(self)
+
+::oLogger := ZLOGGER():New("ZTOPFILE")
+::oLogger:Write("NEW","File: "+cFile)
 
 ::_InitVars() 
 
@@ -105,6 +127,8 @@ Return self
 
 METHOD OPEN(lExclusive,lCanWrite) CLASS ZTOPFILE 
 
+::oLogger:Write("OPEN")
+
 ::_ResetError()
 
 If ::oDBConn = NIL 
@@ -116,23 +140,19 @@ If !::oDBConn:IsConnected()
 Endif
 
 If ::lOpened
-	::_SetError(-1,"File Already Open")
+	::_SetError("File Already Open")
 	Return .F.
 Endif
 
 IF !::Exists()
-	::_SetError(-6,"Unable to OPEN - TOP File ["+::cFileName+"] DOES NOT EXIST")
+	::_SetError("Unable to OPEN - TOP File ["+::cFileName+"] DOES NOT EXIST")
 	Return .F.
 Endif
 
 If lExclusive = NIL ; 	lExclusive := .F. ; Endif
 If lCanWrite = NIL ; 	lCanWrite := .F.  ; Endif
 
-// Por enquanto faz escrita apenas em modo exclusivo
-If lCanWrite .AND. !lExclusive
-	::_SetError(-6,"Unable to OPEN for WRITE in SHARED MODE -- Use Exclusive mode or OPEN FOR READ")
-	Return .F.
-Endif
+// O TopFile permite abrir arquivo para escrita sem estar em modo exclusivo
 
 // Define modo de abertura de acordo com os parametros
 
@@ -151,10 +171,11 @@ Else
 	Else
 		USE (::cFileName) ALIAS (::cAlias) SHARED READONLY NEW VIA "TOPCONN"
 	Endif
+
 Endif
 
 If NetErr()
-	::_SetError(-15,"Unable to OPEN - TOP File ["+::cFileName+"] IN "+IIf( lExclsuive,"EXCLUSIVE","SHARED") +" MODE ")
+	::_SetError("Unable to OPEN - TOP File ["+::cFileName+"] IN "+IIf( lExclsuive,"EXCLUSIVE","SHARED") +" MODE ")
 	Return .F. 
 Endif
 
@@ -172,6 +193,13 @@ Endif
 ::aStruct := (::cAlias)->(DBStruct())
 ::nFldCount := len(::aStruct)
 
+// Cria o array de campos em memoria do registro atual 
+::aGetRecord := Array(::nFldCount)
+::aPutRecord := Array(::nFldCount)
+
+// Atualiza o LastRec
+::nLastRec := 	(::cAlias)->(LastRec())
+
 Return .T. 
 
 
@@ -181,6 +209,8 @@ Return .T.
 // A tabela pode ser aberta novamente pela mesma instancia 
 
 METHOD CLOSE() CLASS ZTOPFILE 
+
+::oLogger:Write("CLOSE")
 
 If !::lOpened
 	// Arquivo ' já está fechado, não faz nada. 
@@ -199,8 +229,12 @@ Endif
 ::ClearIndex()
 
 // Agora fecha a tabela 
-(::cAlias)->(DBCommit()) 
-(::cAlias)->(DbCloseAreA()) 
+If Select(::cAlias) > 0 
+	(::cAlias)->(DBCommit()) 
+	(::cAlias)->(DbCloseAreA()) 
+Else
+	conout("--- WARNING - ZTOPFILE:CLOSE() ALIAS UNEXPECTEDLY CLOSED ---")
+Endif
 
 // Limpa as propriedades -- inclusive flag de abertura 
 ::_InitVars()
@@ -210,6 +244,8 @@ Return
 // ----------------------------------------------------------\
 // Verifica se a tabela existe no banco de dados 
 METHOD EXISTS() CLASS ZTOPFILE 
+
+::oLogger:Write("EXISTS")
 
 If ::oDBConn = NIL 
 	UserException("ZTOPFILE:EXISTS() -- DBCONN NOT SET")
@@ -230,6 +266,8 @@ METHOD CREATE( aStru ) CLASS ZTOPFILE
 Local nFields := 0
 Local nI
 
+::oLogger:Write("CREATE")
+
 If ::oDBConn = NIL 
 	UserException("ZTOPFILE:Create() -- DBCONN NOT SET")
 Endif
@@ -239,11 +277,11 @@ If !::oDBConn:IsConnected()
 Endif
 
 If ::EXISTS()
-	::_SetError(-7,"CREATE ERROR - File Already Exists")
+	::_SetError("CREATE ERROR - File Already Exists")
 Endif
 
 If ::lOpened
-	::_SetError(-8,"CREATE ERROR - File Already Opened")
+	::_SetError("CREATE ERROR - File Already Opened")
 Endif
 
 If aStru = NIL .AND. ::oFileDef != NIL 
@@ -270,6 +308,9 @@ Return .T.
 // ----------------------------------------------------------\
 // Seta o objeto da conexao na tabela 
 METHOD SetDBConn(oDB) CLASS ZTOPFILE
+
+::oLogger:Write("SetDBConn")
+
 ::oDBConn := oDB
 Return
 
@@ -278,6 +319,8 @@ Return
 // Inicializa / Limpa as propriedades padrao do Objeto 
 
 METHOD _InitVars() CLASS ZTOPFILE 
+
+::oLogger:Write("_InitVars")
 
 // Inicialização das propriedades da classe pai
 _Super:_InitVars()
@@ -289,6 +332,7 @@ _Super:_InitVars()
 ::aPutRecord  := {}
 ::lUpdPend    := .F. 
 ::lInInsert   := .F. 
+::cSqlOrderBy := ''
 
 Return
 
@@ -305,10 +349,22 @@ Return
 // TODO - Inserir tratamento caso eu esteja em inserção 
 
 METHOD FieldGet(nPos) CLASS ZTOPFILE 
-If nPos > 0 .and. nPos <= ::nFldCount 
-	Return (::cAlias)->(FieldGet(nPos))
+If valtype(nPos) = 'C'
+	nPos := ::FieldPos(nPos)
+Endif         
+
+If nPos < 1 .or. nPos > ::nFldCount 
+	Return NIL 
 Endif
-Return NIL
+	
+If ::lInInsert  .AND. ::aPutRecord[nPos] != NIL 
+	// Estou em inserçào, pega valores da memória 
+	// Se eu já atualizei algum campo, pega o valor 
+	// senão pega o valor default 
+	Return ::aPutRecord[nPos]
+Endif
+
+Return ::aGetRecord[nPos]
 
 // ----------------------------------------------------------
 // Atualiza um valor na coluna informada do registro atual 
@@ -316,6 +372,10 @@ Return NIL
 // Faz isso no array em memoria 
 
 METHOD FieldPut(nPos,xValue) CLASS ZTOPFILE 
+
+If valtype(nPos) = 'C'
+	nPos := ::FieldPos(nPos)
+Endif
 
 If ( !::lCanWrite )
 	UserException("ZTOPFILE::FieldPut() Error -- File NOT OPEN for WRITING")
@@ -354,6 +414,16 @@ If !::lEOF
 	Return (::cAlias)->(Deleted())
 Endif
 Return .F. 
+
+
+// ----------------------------------------
+// Atualiza LastRec do ZISAMFILE e retorna 
+
+METHOD Lastrec() CLASS ZTOPFILE
+::nLastRec := 	(::cAlias)->(LastRec())
+Return ::nLastRec
+
+
 
 // ----------------------------------------
 // Retorna o tamanho estimado do HEader
@@ -394,6 +464,8 @@ Return (::cAlias)->(Recno())
 // A confirmação da inserção é feita pelo Update()
 METHOD Insert() CLASS ZTOPFILE
 
+::oLogger:Write("Insert")
+
 If ::lInInsert
 	conout("--- WARNING - ZTOPFILE:Insert() REQUESTED WITH PENDING INSERT ---")
 	::Update()
@@ -417,6 +489,8 @@ Return .T.
 METHOD Update() CLASS ZTOPFILE
 Local nI
 Local lHasLock := .F. 
+
+::oLogger:Write("Update")
 
 If ( ::lEOF )
 	UserException("ZTOPFILE::Update() ERROR -- File is in EOF")
@@ -477,6 +551,25 @@ aEval(::aIndexes , {|oIndex| oIndex:UpdateKey() })
 
 Return .T. 
 
+// ----------------------------------------
+// *** METODO DE USO INTERNO ***
+// Lê o registro atual para a memoria 
+
+METHOD _ReadRecord() CLASS ZTOPFILE
+Local nI
+
+::oLogger:Write("_ReadRecord","Recno: "+cValToChar(::Recno()))
+
+For nI := 1 to ::nFldCount
+	::aGetRecord[nI] := (::cAlias)->(FieldGet(nI))
+Next
+
+// Reseta flags de BOF e EOF 
+::lBOF := .F. 
+::lEOF := .F. 
+
+Return .T. 
+
 // ----------------------------------------------------------
 // *** METODO DE USO INTERNO ***
 // Limpa os campos do registro atual 
@@ -484,8 +577,245 @@ Return .T.
 
 METHOD _ClearRecord()  CLASS ZTOPFILE
 
+::oLogger:Write("_ClearRecord()")
+
 // Inicializa com o valor default os campos da estrutura 
 _Super:_ClearRecord()
 
 Return
+
+// ----------------------------------------------------------
+// Vai para o topo da tabela atual na ordem atual 
+
+METHOD GoTop() CLASS ZTOPFILE
+
+::oLogger:Write("GoTop")
+
+(::cAlias)->(DBGoTop())
+
+::lBOF := (::cAlias)->(Bof())
+::lEOF := (::cAlias)->(Eof())
+::nRecno := (::cAlias)->(Recno())
+
+IF !::lEof
+	::_ReadRecord()
+Else
+    ::_ClearRecord()
+Endif
+
+Return
+
+
+// ----------------------------------------------------------
+// 
+
+METHOD Skip(nRecs) CLASS ZTOPFILE
+
+If nRecs = NIL
+	nRecs := 1 
+Endif
+
+(::cAlias)->(DBSkip(nRecs))
+
+::lBOF := (::cAlias)->(Bof())
+::lEOF := (::cAlias)->(Eof())
+::nRecno := (::cAlias)->(Recno())
+
+IF !::lEof
+	::_ReadRecord()
+Else
+    ::_ClearRecord()
+Endif
+
+Return
+
+
+// ----------------------------------------------------------
+//
+
+METHOD GoTo(nRec)	CLASS ZTOPFILE
+
+::oLogger:Write("GoTo")
+
+(::cAlias)->(DBGoto(nRec))
+
+::lBOF := (::cAlias)->(Bof())
+::lEOF := (::cAlias)->(Eof())
+::nRecno := (::cAlias)->(Recno())
+
+IF !::lEof
+	::_ReadRecord()
+Else
+    ::_ClearRecord()
+Endif
+
+Return
+
+
+// ----------------------------------------------------------
+// Verifica estrutura fisica versus definição 
+
+METHOD UpdStruct(oFileDef) CLASS ZTOPFILE
+Local aDBStru := {}   // Estrutura da tabela no banco de dados 
+Local aDefStru := {}  // Estrutura segundo a definição da tabela 
+Local lOk
+
+::oLogger:Write("UpdStruct")
+
+If !::oDBConn:IsConnected()
+	UserException("ZTOPFILE:UpdStruct() -- DBCONN NOT CONNECTED")
+Endif
+
+If empty(::aStruct)
+	// Se eu ainda nao tenho a estrutura fisica, busca no banco 
+	// Abertura Shared, Read Only
+	IF ::Open(.F.,.F.)
+		aDBStru := aClone(::aStruct)
+		::Close()
+	Else
+		Return .F. 
+	Endif
+Endif
+
+// Agora vamos ver a estrutura segundo a definicao 
+aDefStru := oFileDef:GetStruct()
+
+If len(aDefStru) > len(aDbStru)
+
+	// Se a definição tem campos novos, altera as estruturas 
+
+	lOk := TCAlter(::cFileName , aDbStru , aDefStru )
+
+	IF !lOk
+		::_SetError(TCSqlError())
+		Return .F. 
+	Endif
+
+	MsgInfo("Estrutura da Tabela ["+::cFileName+"] ajustada automaticamente.")
+
+ElseIf zCompare(aDbStru,aDefStru) <> 0 
+
+	// Se nao tem campos novos, mas as estruturas estao diferentes
+	// pode ter havido alteração de parametros. Verificar o que fazer...
+
+	::_SetError("Definição diferente da estrutura da tabela.")
+	Return .F. 
+
+Endif
+
+Return .T. 
+
+
+// ----------------------------------------------------------
+// Busca um registro que atenda os criterios informados
+// aRecord recebe os dados a procurar no formato [1] Campo [2][ Conteudo 
+// aFound retorna o registro encontrado por referencia ( todos os campos ) 
+// no mesmo formato do aRecord, acrescido do RECNO 
+// -- Optimização no TOPFILE para usar QUERY 
+
+METHOD Search(aRecord,aFound,lExact)  CLASS ZTOPFILE
+Local nCnt := len(aRecord)
+Local nI
+Local nPos
+Local cQuery
+Local cType
+Local nRecFound := 0
+Local oQuery
+
+::oLogger:Write("Search")
+
+IF lExact = NIL
+	lExact := .F.
+Endif
+
+aSize(aFound,0)
+
+cQuery := 'SELECT '
+If TCGetDB() == 'MSSQL'
+	cQuery += 'TOP 1'
+Endif
+cQuery += ' R_E_C_N_O_ AS RECNO FROM '
+cQuery += ::cFileName
+cQuery += ' WHERE '
+
+For nI := 1 to nCnt
+	
+	If nI > 1
+		cQuery += ' AND '
+	Endif
+	
+	nPos := ::FieldPos(aRecord[nI][1])
+	cType := ::FieldType(nPos)
+	
+	cQuery += ::FieldName(nPos)
+	
+	IF cType = 'C'
+		IF lExact
+			cQuery += " = '"+aRecord[nI][2]+"' "
+		Else
+			cQuery += " LIKE '%"+Alltrim(aRecord[nI][2])+"%' "
+		Endif
+	ElseIF cType = 'D'
+		cQuery += " = '"+DTOS(aRecord[nI][2])+"' "
+	ElseIF cType = 'N'
+		cQuery += " = "+cValToChar(aRecord[nI][2])+" "
+	ElseIF cType = 'L'
+		cQuery += " = '"+IIF(aRecord[nI][2],'T','F')+"' "
+	Endif
+	
+Next
+
+If nCnt > 0
+	cQuery += ' AND '
+Endif	
+
+cQuery += " D_E_L_E_T_ != '*' "
+
+If !Empty(::cSqlOrderBy)
+	cQuery += ' ORDER BY '+::cSqlOrderBy
+Endif
+
+oQuery := ZQUERYFILE():New(cQuery)
+oQuery:Open()
+oQuery:SetField('RECNO','N',16,0)
+If !oQuery:Eof()
+	nRecFound := oQuery:Fieldget(1)
+Endif
+oQuery:Close()
+FreeObj(oQuery)
+
+IF nRecFound > 0
+	
+	// Achou , posiciona no registro e traz o conteudo
+	::Goto(nRecFound)
+	
+	For nI := 1 to ::nFldCount
+		aadd(aFound , {  ::FieldName(nI) , ::FieldGet(nI)  })
+		// conout("Found ["+::FieldName(nI)+"] = ["+cValToChar(::FieldGet(nI))+"]")
+	Next
+	
+	// Acrescenta o RECNO no array
+	aadd(aFound,{"RECNO",::Recno() })
+	Return .T.
+	
+Endif
+
+::_SetError( "Nenhum registro foi encontrado baseado nos dados informados" )
+
+Return .F.
+
+
+// ----------------------------------------------------------
+// Permite acrescentar um ORDER BY direto na query do componente de busca 
+
+METHOD SetSQLOrderBy(cOrderBy) CLASS ZTOPFILE 
+::oLogger:Write("SetSQLOrderBy",cOrderBy)
+::cSqlOrderBy := cOrderBy
+Return
+
+// ----------------------------------------------------------
+// Recupera o ORDER BY setado para a query de busca (search) 
+
+METHOD GetSQLOrderBy() CLASS ZTOPFILE 
+Return ::cSqlOrderBy
 

@@ -18,8 +18,8 @@ CLASS ZLIBENV
   METHOD DONE()     // Finalizador / Destrutor
 
   METHOD SETENV()   // Seta o minimo do ambiente ( formato de data e acentuação ) 
-  METHOD SETOBJ()   // Guarda um objeto do ambiente
-  METHOD GETOBJ()   // Recupera um objeto do ambiente 
+  METHOD SetObject()   // Guarda um objeto do ambiente
+  METHOD GetObject()   // Recupera um objeto do ambiente 
 
 ENDCLASS
 
@@ -91,11 +91,11 @@ Return
 // ----------------------------------------------------------
 //
 
-METHOD SETOBJ(cObjId,oObject) CLASS ZLIBENV
+METHOD SetObject(cObjId,oObject) CLASS ZLIBENV
 Local nPos
 
 If ::lVerbose
-	conout("ZLIBENV:SETOBJ("+cObjId+") -- "+GETCLASSNAME(oObject))
+	conout("ZLIBENV:SetObject("+cObjId+") -- "+GETCLASSNAME(oObject))
 Endif		
 
 nPos := ascan(::aObjList,{|x| x[1] == cObjId})
@@ -110,7 +110,7 @@ Return
 // ----------------------------------------------------------
 //
 
-METHOD GETOBJ(cObjId) CLASS ZLIBENV
+METHOD GetObject(cObjId) CLASS ZLIBENV
 Local nPos
 nPos := ascan(::aObjList,{|x| x[1] == cObjId})
 If nPos > 0 

@@ -74,10 +74,10 @@ CLASS ZDBFFILE FROM ZISAMFILE
   DATA lUpdPend             // Flag indicando update pendente 
   DATA lDeleted				// Indicador de registro corrente deletado (marcado para deleção ) 
   DATA lSetDeleted          // Filtro de registros deletados ativo 
-  DATA nRecno				// Número do registro (RECNO) atualmnete posicionado 
 
   DATA nHData				// Handler do arquivo de dados
   DATA oMemoFile			// Objeto para lidar com campo Memo 
+  DATA oLogger              // Objeto de log 
     	
   // ========================= Metodos de uso público da classe
 
@@ -129,8 +129,13 @@ Return "DBF"
 // ----------------------------------------------------------
 // Construtor do objeto DBF 
 // Apenas recebe o nome do arquivo e inicializa as propriedades
+// Inicializa o ZISAMFILE passando a instancia atual 
 
 METHOD NEW(cFile,oFileDef) CLASS ZDBFFILE 
+_Super:New(self)
+
+::oLogger := ZLOGGER():New("ZDBFFILE")
+::oLogger:Write("NEW","File: "+cFile)
 
 ::_InitVars() 
 ::cDataFile   := lower(cFile)
@@ -656,6 +661,10 @@ Return .T.
 // a partir da posiçao do campo na estrutura
 
 METHOD FieldGet(nPos) CLASS ZDBFFILE 
+     
+If valtype(nPos) = 'C'
+	nPos := ::FieldPos(nPos)
+Endif
 
 If nPos > 0 .and. nPos <= ::nFldCount 
 
@@ -677,6 +686,10 @@ Return NIL
 // Por hora nao critica nada, apenas coloca o valor no array 
 
 METHOD FieldPut(nPos,xValue) CLASS ZDBFFILE 
+
+If valtype(nPos) = 'C'
+	nPos := ::FieldPos(nPos)
+Endif
 
 If ( !::lCanWrite )
 	UserException("Invalid FieldPut() -- File NOT OPEN for WRITING")

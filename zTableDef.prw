@@ -3,7 +3,9 @@
 
 /* ======================================================
 
-Classe de abstração de definição de Tabela 
+Definição completa de tabela -- Estutura Fisica e Detalhamento de Campos 
+
+( Usada como base para a definição de um componente ) 
 
 ====================================================== */
 
@@ -15,17 +17,24 @@ CLASS ZTABLEDEF FROM LONGNAMECLASS
    DATA aFieldDef
    DATA cUnqExpr
    DATA aEvents
+   DATA aActions
 
    METHOD New()                        // Construtor 
    METHOD SetStruct()                  // Seta uma estrutura ( Array formato DBF ) 
    METHOD GetStruct()                  // Recupera a estrutura ( Array Formato DBF ) 
-   METHOD NewFieldDef()                // Cria um objeto de definicao extendida de campo 
-   METHOD GetAFieldDef()               // Retorna o array com a deefinição de todos os campos 
+   METHOD NewFieldDef()                // Cria um objeto de definicao estendida de campo 
+   METHOD GetFieldDef()                // Retorna o onjeto da definicao de um campo pelo nome 
+   METHOD GetFields()                  // Retorna o array com a deefinição de todos os campos 
    METHOD AddField()                   // ACrescenta um campo na estrutura 
    METHOD AddFieldDef()                // Acrescenta definição de campo 
    METHOD AddIndex()                   // Acrescenta uma expressao de indice 
    METHOD SetUnique()                  // Seta expressao de chave unica 
    METHOD AddEvent()                   // Acrescenta um evento na definição 
+   METHOD AddAction()                  // Acrescenta uma ação do componente
+   METHOD RunEvents()                  // Executa um ou mais eventos 
+   METHOD GetActions()
+   METHOD RunAction()
+   METHOD Done()                       // Finaliza a definição 
    
 ENDCLASS 
 
@@ -41,6 +50,7 @@ METHOD NEW(cId) CLASS ZTABLEDEF
 ::aFieldDef := {}
 ::cUnqExpr := ''
 ::aEvents := {}
+::aActions := {}
 Return self
 
 // ------------------------------------------------------
@@ -77,8 +87,24 @@ Return oFieldDef
 
 // ------------------------------------------------------
 
-METHOD GetAFieldDef() CLASS ZTABLEDEF
-Return aClone(::aFieldDef)
+METHOD GetFieldDef(cFldName)  CLASS ZTABLEDEF
+Local nPos 
+
+cFldName := alltrim(upper(cFldName))
+
+nPos := ascan(::aFieldDef,{|x| x:GetField() == cFldName }) 
+
+If nPos > 0 
+	Return ::aFieldDef[nPos]
+Endif
+
+Return NIL
+
+// ------------------------------------------------------
+// Retorna o array com os objetos da definição dos campos
+
+METHOD GetFields() CLASS ZTABLEDEF
+Return ::aFieldDef
 
 // ------------------------------------------------------
 // Acrescenta campo na estrutura 
@@ -148,4 +174,63 @@ METHOD AddEvent(nEvent,bBlock) CLASS ZTABLEDEF
 aadd( ::aEvents , {nEvent,bBlock} )
 Return
 
+
+// ------------------------------------------------------
+// Executa os eventos registrados sob um identificador 
+// A execução sempre recebe o objeto do modelo como parametro 
+// A execução dos eventos deve retornar .T. para a aplicação 
+// continuar. O primeiro evento que retorne .F. interrompe 
+// o processamento do loop de eventos -- caso exista mais de um 
+
+METHOD RunEvents(nEvent,oModel) CLASS ZTABLEDEF
+Local nI
+Local lOk := .T. 
+
+For nI := 1 to len(::aEvents)
+	If ::aEvents[nI][1] == nEvent
+		lOk := Eval(::aEvents[nI][2] , oModel )
+		IF !lOk
+			EXIT
+		Endif
+	Endif
+Next
+
+Return lOk 
+
+
+// ------------------------------------------------------
+
+METHOD RunAction(nAct,oModel) CLASS ZTABLEDEF
+Local lOk
+lOk := Eval(::aActions[nAct][2] , oModel )
+Return lOk
+
+
+// ------------------------------------------------------
+// Finaliza / Limpa a definicao e suas propriedades
+
+METHOD Done() CLASS ZTABLEDEF
+
+::cDefId     := NIL
+::aStruct    := NIL
+::aIndex     := NIL
+::aFieldDef  := NIL
+::cUnqExpr   := NIL
+::aEvents    := NIL
+::aActions   := NIL
+
+Return
+
+// ------------------------------------------------------
+// Acrescenta uma ação do componente
+
+METHOD AddAction(cTitle,bAction) CLASS ZTABLEDEF
+AADD( ::aActions , { cTitle,bAction } )
+Return
+
+// ------------------------------------------------------
+//
+
+METHOD GetActions() CLASS ZTABLEDEF
+Return ::aActions
 

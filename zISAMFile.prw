@@ -16,13 +16,13 @@ registros em tabela ISAM
 
 CLASS ZISAMFILE FROM LONGNAMECLASS
 
-  DATA nLastError			// Ultimo erro ocorrido 
-  DATA cLastError			// Descrição do último erro 
+  DATA cError			    // Descrição do último erro 
   DATA lVerbose             // Modo Verbose (echo em console ligado)
   DATA bFilter              // Codeblock de filtro 
   DATA nIndexOrd            // Ordem de indice atual 
   DATA aIndexes             // Array com objetos de indice 
   DATA oCurrentIndex        // Objeto do indice atual 
+  DATA nRecno				// Número do registro (RECNO) atualmnete posicionado 
   DATA nLastRec				// Ultimo registro do arquivo - Total de registros
   DATA aStruct		   		// Array com a estrutura do DBF 
   DATA nFldCount			// Quantidade de campos do arquivo 
@@ -32,9 +32,11 @@ CLASS ZISAMFILE FROM LONGNAMECLASS
   DATA lCanWrite            // Arquivo aberto para gravacao 
   DATA aGetRecord			// Array com todas as colunas do registro atual 
   DATA aPutRecord           // Array com campos para update 
+  DATA oISAMLogger              // Objeto de log 
   
   DATA oFileDef             // Definição extendida do arquivo 
 
+  METHOD New()              // *** O Construtor nao pode ser chamado diretamente ***
   METHOD GoTo(nRec)		    // Posiciona em um registro informado. 
   METHOD GoTop()			// Posiciona no RECNO 1 da tabela 
   METHOD GoBottom()   	    // Posiciona em LASTREC da tabela 
@@ -49,6 +51,7 @@ CLASS ZISAMFILE FROM LONGNAMECLASS
   METHOD FCount()           // Retorna o numero de campo / colunas da tabela
   METHOD FieldName( nPos )	// Recupera o nome da coluna informada 
   METHOD FieldPos( cField ) // Retorna a posicao de um campo na estrutura da tabela ( ID da Coluna )
+  METHOD FieldType( nPos )	// Recupera o tipo da coluna informada 
 
   METHOD SetOrder()         // Seta um indice / ordem ativa 
   METHOD IndexOrd()         // Retorna a ordem ativa
@@ -57,14 +60,13 @@ CLASS ZISAMFILE FROM LONGNAMECLASS
   METHOD Seek(cKeyExpr)     // Realiza uma busca usando o indice ativo 
   METHOD CreateIndex()      // Cria um Indice ( em memoria ) para a tabela 
   METHOD ClearIndex()       // Fecha todos os indices
+  METHOD Search()           // Busca um registro que atenda os criterios informados
 
   METHOD CreateFrom()       // Cria tabela a partir da estrutura do objeto ou alias informado
   METHOD AppendFrom()       // Apenda dados do objeto ou alias informado na tabela atual 
   METHOD Export()           // Exporta o arquivo para um outro formato
   METHOD Import()           // Importa dados de arquivo externo em outro formato ( SDF,CSV,JSON )
 
-  METHOD GetError() 		// Retorna o Codigo e Descricao por referencia do ultimo erro 
-  METHOD GetErrorCode()     // Retorna apenas oCodigo do ultimo erro ocorrido
   METHOD GetErrorStr()		// Retorna apenas a descrição do último erro ocorrido
 
   METHOD SetVerbose()       // Liga ou desliga o modo "verbose" da classe
@@ -98,6 +100,12 @@ ENDCLASS
 
 
 // ----------------------------------------
+METHOD New(oParent) CLASS ZISAMFILE
+::oISAMLogger := ZLOGGER():New("ZISAMFILE")
+::oISAMLogger:Write("NEW","IsamFile based on "+GetClassName(oParent))
+Return
+
+// ----------------------------------------
 // Retorna .T. caso a ultima movimentação de registro 
 // tentou ir antes do primeiro registro 
 METHOD BOF() CLASS ZISAMFILE 
@@ -115,6 +123,8 @@ METHOD GoTo(nRec)  CLASS ZISAMFILE
 
 // Verifica se o registro é válido 
 // Se não for, vai para EOF
+          
+::oISAMLogger:Write("GoTo","Record "+cValToChar(nRec))
 
 If nRec > ::nLastRec .or. nRec < 1
 	::lEOF := .T.
@@ -142,6 +152,8 @@ Return
 // Release 20190105 : Contempla uso de indice
 
 METHOD GoTop() CLASS ZISAMFILE 
+
+::oISAMLogger:Write("GoToP")
 
 IF ::nLastRec == 0 
 	// Nao há registros 
@@ -177,6 +189,8 @@ Return
 // Movimenta a tabela para o último registro
 
 METHOD GoBottom() CLASS ZISAMFILE 
+
+::oISAMLogger:Write("GoBottom")
 
 IF ::nLastRec == 0 
 	// Nao há registros 
@@ -215,6 +229,8 @@ Return
 
 METHOD Skip( nQtd ) CLASS ZISAMFILE
 Local lForward := .T. 
+
+::oISAMLogger:Write("Skip")
 
 If nQtd  == NIL
 	nQtd := 1
@@ -258,6 +274,8 @@ Return
 METHOD SetFilter( cFilter ) CLASS ZISAMFILE
 Local cFilterBlk
 
+::oISAMLogger:Write("SetFilter",cFilter)
+
 // retorna string com codebloc para expressao de campos 
 cFilterBlk := ::_BuildFieldBlock(cFilter)
 
@@ -270,6 +288,7 @@ Return .T.
 // Limpa a expressao de filtro atual 
 
 METHOD ClearFilter() CLASS ZISAMFILE
+::oISAMLogger:Write("ClearFilter")
 ::bFilter := NIL
 Return
 
@@ -315,11 +334,24 @@ Return NIL
 METHOD FieldPos( cField ) CLASS ZISAMFILE
 Return ASCAN( ::aStruct , {|x| x[1] = cField })
 
+// ----------------------------------------------------------
+// Recupera o tipo do campo na estrutura da tabela 
+// a partir da posicao do campo na estrutura
+
+METHOD FieldType(nPos) CLASS ZISAMFILE
+If nPos > 0 .and. nPos <= ::nFldCount 
+	Return ::aStruct[nPos][2]
+Endif
+Return NIL
+
 // ----------------------------------------
 // Permite trocar a ordedm atual usando 
 // um indice aberto 
 
 METHOD SetOrder(nOrd) CLASS ZISAMFILE
+
+::oISAMLogger:Write("SetOrder","Order: "+cValToChar(nOrd))
+
 If nOrd < 0 .OR.  nOrd > len( ::aIndexes )
 	UserException("DbSetOrder - Invalid Order "+cValToChar(nOrd))
 Endif
@@ -362,6 +394,8 @@ Return NIL
 METHOD Seek(cKeyExpr) CLASS ZISAMFILE
 Local nRecFound := 0
 
+::oISAMLogger:Write("Seek","Key: "+cKeyExpr)
+
 IF ::nIndexOrd <= 0
 	UserException("DBSeek Failed - No active Index")
 Endif
@@ -394,6 +428,8 @@ METHOD CreateIndex(cIndexExpr) CLASS ZISAMFILE
 Local oMemIndex
 Local nLastIndex
 
+::oISAMLogger:Write("CreateIndex","Expression: "+cIndexExpr)
+
 // Cria o objeto do indice passando a instancia
 // do arquivo DBF atual 
 oMemIndex := ZMEMINDEX():New(self)
@@ -419,6 +455,8 @@ Return
 METHOD ClearIndex()  CLASS ZISAMFILE
 Local nI
 
+::oISAMLogger:Write("ClearIndex")
+
 For nI := 1 to len(::aIndexes)
 	::oCurrentIndex := ::aIndexes[nI]
 	::oCurrentIndex:Close()
@@ -438,6 +476,8 @@ METHOD CreateFrom( _oDBF , lAppend  ) CLASS ZISAMFILE
 Local lFromAlias := .F. 
 Local cAlias := ""
 Local aStruct := {}
+
+::oISAMLogger:Write("CreateFrom")
 
 If lAppend = NIL ; lAppend := .F. ; Endif
 
@@ -495,6 +535,8 @@ Local aFrom := {}
 Local nI, nPos, cField
 Local lFromAlias := .F. 
 Local cAlias := ""
+
+::oISAMLogger:Write("AppendFrom")
 
 DEFAULT lAll  := .T. 
 DEFAULT lRest := .F.
@@ -604,6 +646,8 @@ Return .T.
 
 METHOD Export( cFormat, cFileOut , bBlock ) CLASS ZISAMFILE
 
+::oISAMLogger:Write("Export")
+
 // Primeiro, a tabela tem qye estar aberta
 IF !::lOpened
 	UserException("ZISAMFILE:EXPORT() Failed - Table not opened")
@@ -633,6 +677,8 @@ Return lOk
 
 METHOD SetFileDef(oDef)  CLASS ZISAMFILE
 
+::oISAMLogger:Write("SetFileDef")
+
 IF ::lOpened
 	UserException("SetFileDef Failed - Table already opened")
 	Return .F.
@@ -640,9 +686,6 @@ Endif
 
 // Recebe a definição do arquivo 
 ::oFileDef := oDef
-
-// Perga a estrutura da tabela 
-::aStruct := oDef:GetStruct()
 
 Return .T. 
 
@@ -659,9 +702,11 @@ Local cBuffer := ''
 Local cRow
 Local cTipo,nTam,nDec
 
+::oISAMLogger:Write("_ExportSDF")
+
 nHOut := fCreate(cFileOut)
 If nHOut == -1
-	::_SetError(-12,"Output SDF File Create Error - FERROR "+cValToChar(Ferror()))
+	::_SetError("Output SDF File Create Error - FERROR "+cValToChar(Ferror()))
 	Return .F.
 Endif
 
@@ -730,9 +775,11 @@ Local cBuffer := ''
 Local cRow
 Local cTipo,nTam,nDec
 	
+::oISAMLogger:Write("_ExportCSV")
+
 nHOut := fCreate(cFileOut)
 If nHOut == -1
-	::_SetError(-12,"Output CSV File Create Error - FERROR "+cValToChar(Ferror()))
+	::_SetError("Output CSV File Create Error - FERROR "+cValToChar(Ferror()))
 	Return .F.
 Endif
 
@@ -832,9 +879,11 @@ Local lFirst := .T.
 Local cRow
 Local cTipo,nTam,nDec
 
+::oISAMLogger:Write("_ExportJSON")
+
 nHOut := fCreate(cFileOut)
 If nHOut == -1
-	::_SetError(-12,"Output JSON File Create Error - FERROR "+cValToChar(Ferror()))
+	::_SetError("Output JSON File Create Error - FERROR "+cValToChar(Ferror()))
 	Return .F.
 Endif
 
@@ -942,10 +991,11 @@ Local cBuffer := ''
 Local cRow
 Local cCampo,cTipo,nTam,nDec
 
+::oISAMLogger:Write("_ExportXML")
 
 nHOut := fCreate(cFileOut)
 If nHOut == -1
-	::_SetError(-12,"Output XML File Create Error - FERROR "+cValToChar(Ferror()))
+	::_SetError("Output XML File Create Error - FERROR "+cValToChar(Ferror()))
 	Return .F.
 Endif
 
@@ -1044,6 +1094,8 @@ Return .T.
 METHOD Import(cFileIn,cFormat) CLASS ZISAMFILE
 Local lOk
 
+::oISAMLogger:Write("Import")
+
 // Primeiro, a tabela tem qye estar aberta
 IF !::lOpened
 	UserException("Import Failed - Table not opened")
@@ -1087,11 +1139,13 @@ Local nOffset
 Local cTipo, nTam
 Local cValue, xValue
 
+::oISAMLogger:Write("_ImportSDF")
+
 // Abre o arquivo SDF para leitura 
 nH := FOpen(cFileIn)
 
 If nH == -1
-	::_SetError(-13, "_ImportSDF() ERROR - File Open Failed - FERROR "+cValToChar(ferror()) )
+	::_SetError( "_ImportSDF() ERROR - File Open Failed - FERROR "+cValToChar(ferror()) )
 	Return .F. 
 Endif
 
@@ -1123,7 +1177,7 @@ nCheck := nFsize % nRowSize
 
 If nCheck <> 1
 
-	::_SetError(-13, "_ImportSDF() ERROR - SDF File Size FERROR MISMATCH" )
+	::_SetError( "_ImportSDF() ERROR - SDF File Size FERROR MISMATCH" )
 	FClose(nH)
 	Return .F. 
 
@@ -1199,11 +1253,13 @@ Local nLidos
 Local aHeadCpos := {}
 Local aFileCpos := {}
 
+::oISAMLogger:Write("_ImportCSV")
+
 // Abre o arquivo CSV para leitura 
 nH := FOpen(cFileIn)
 
 If nH == -1
-	::_SetError(-13, "_ImportCSV() ERROR - File Open Failed - FERROR "+cValToChar(ferror()) )
+	::_SetError( "_ImportCSV() ERROR - File Open Failed - FERROR "+cValToChar(ferror()) )
 	Return .F. 
 Endif
 
@@ -1260,7 +1316,7 @@ Next
 
 If zCompare( aFileCpos , aHeadCpos ) < 0 
 	fClose(nH)	
-	::_SetError(-14, "_ImportCSV() ERROR - Header Fields Mismatch." )
+	::_SetError( "_ImportCSV() ERROR - Header Fields Mismatch." )
 	Return .F. 
 Endif
 
@@ -1455,40 +1511,26 @@ Endif
 Return .F. 
 
 // ----------------------------------------------------------
-// Retorna o código do ultimo erro e a descrição por referencia
-
-METHOD GetError( cRefError ) CLASS ZISAMFILE 
-cRefError := ::cLastError
-Return ::nLastError
-
-// ----------------------------------------------------------
-// Retorna apenas o código do ultimo erro 
-
-METHOD GetErrorCode() CLASS ZISAMFILE 
-Return ::nLastError
-
-// ----------------------------------------------------------
 // Retorna apenas a descrição do ultimo erro 
 
 METHOD GetErrorStr() CLASS ZISAMFILE 
-Return ::cLastError
+Return ::cError
 
 // ----------------------------------------------------------
 // *** METODO DE USO INTERNO ***
 // Limpa o registro do ultimo erro 
 
 METHOD _ResetError() CLASS ZISAMFILE 
-::cLastError := ''
-::nLastError := 0 
+::cError := ''
 Return
 
 // ----------------------------------------------------------
 // *** METODO DE USO INTERNO ***
 // Seta uma nova ocorrencia de erro
 
-METHOD _SetError(nCode,cErrorMsg) CLASS ZISAMFILE 
-::cLastError := cErrorMsg
-::nLastError := nCode
+METHOD _SetError(cErrorMsg) CLASS ZISAMFILE 
+::oISAMLogger:Write("_SetError",cErrorMsg)
+::cError := cErrorMsg
 Return
 
 
@@ -1512,8 +1554,7 @@ METHOD _InitVars() CLASS ZISAMFILE
 
 ::lOpened       := .F. 
 ::lCanWrite     := .F. 
-::nLastError    := 0
-::cLastError    := ''
+::cError        := ''
 ::lVerbose      := .T. 
 ::bFilter       := NIL
 ::lBof          := .F. 
@@ -1532,11 +1573,15 @@ Return
 
 // ----------------------------------------------------------
 // *** METODO DE USO INTERNO ***
-// Limpa os campos do registro atual 
+// Limpa os campos do registro atual de leitura
 // ( Inicializa todos com os valores DEFAULT ) 
+// Limpa campos de gravação / update 
+// ( seta NIL nos elementos ) 
 
-METHOD _ClearRecord()  CLASS ZISAMFILE
+METHOD _ClearRecord() CLASS ZISAMFILE
 Local nI , cTipo , nTam
+
+::oISAMLogger:Write("_ClearRecord")
 
 // Inicializa com o valor default os campos da estrutura 
 For nI := 1 to ::nFldCount
@@ -1555,6 +1600,9 @@ For nI := 1 to ::nFldCount
 	Endif
 Next
 
+// Zera também registro de granação
+::aPutRecord := Array(::nFldCount)
+
 Return
 
 // ----------------------------------------------------------
@@ -1568,6 +1616,8 @@ METHOD _BuildFieldBlock(cFieldExpr) CLASS ZISAMFILE
 Local aCampos := {}
 Local cBlockStr
 Local nI, nPos
+
+::oISAMLogger:Write("_BuildFieldBlock",cFieldExpr)
 
 // Cria lista de campos
 aEval( ::aStruct , {|x| aadd(aCampos , x[1]) } )
@@ -1602,6 +1652,8 @@ If lQuoted
 	cQuotStr := StrTran(cQuotStr,'""','"')
 Endif
 Return 
+
+// ----------------------------------------------------------
 
 STATIC Function GetNextVal(cCSVLine)
 Local lQuoted := .F.
@@ -1643,4 +1695,85 @@ If lQuoted
 Endif
 
 Return cRet
+
+// ----------------------------------------------------------
+// Busca um registro que atenda os criterios informados
+// aRecord recebe os dados a procurar no formato [1] Campo [2][ Conteudo 
+// aFound retorna o registro encontrado por referencia ( todos os campos ) 
+// no mesmo formato do aRecord, acrescido do RECNO 
+// Por padrao a busca é feita por substring 
+// Caso seja especificada busca EXATA, os conteudos dos campos 
+// informados devem ter correspondencia exata com a base de dados
+
+METHOD Search(aRecord,aFound,lExact)  CLASS ZISAMFILE 
+Local nCnt := len(aRecord)
+Local nI
+Local aFldPos := {}
+Local nFound := 0
+
+::oISAMLogger:Write("Search")
+
+IF lExact = NIL
+	lExact := .F.
+Endif
+
+aSize(aFound,0)
+
+// Sempre posiciona no topo 
+
+If nCnt <= 0 
+	
+	// Sem condições especificadas, pega 
+	// o primeiro registro 
+	::GoTop()
+
+Else
+
+	// Mapeia campos informados com a posição 
+	// do campo no arquivo 	
+	For nI := 1 to nCnt
+		aadd( aFldPos , ::fieldpos(aRecord[nI][1]) )
+	Next
+    
+	// Começa a busca sempre no inicio do arquivo 
+	::GoTop()
+
+	// FAz busca sequencial	
+	While !::Eof()
+		nFound := 0 
+		For nI := 1 to nCnt 
+			IF lExact
+				// Busca exata
+				IF ::FieldGet(aFldPos[nI]) == aRecord[nI][2]
+					nFound++
+				Endif
+			Else
+			    // Busca por substring ( ou "like %content%" ) 
+				If alltrim(aRecord[nI][2]) $ ::FieldGet(aFldPos[nI])  
+					nFound++
+				Endif
+			Endif
+		Next
+		If nFound == nCnt
+			EXIT
+		Endif
+		::Skip()
+	Enddo
+	
+Endif
+
+If !::Eof()  
+	// Nao estou em EOF = achei um registro 
+	For nI := 1 to ::nFldCount
+		aadd(aFound , {  ::FieldName(nI) , ::FieldGet(nI)  })
+	Next
+	// Acrescenta o RECNO no campo
+	aadd(aFound,{"RECNO",::Recno()})
+	Return .T.
+Endif
+
+::_SetError( "Nenhum registro foi encontrado baseado nos dados informados" )
+
+Return .F. 
+
 

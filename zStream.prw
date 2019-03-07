@@ -9,21 +9,21 @@ Data           01/2019
 Descrição      O Objeto Stream permite gravar sequencias de dados e de objetos 
                em uma string binária, que pode ser armazenada e carregada 
 
-
 ============================================================================ */
 
 CLASS ZSTREAM FROM LONGNAMECLASS
 
    DATA aStream          // Array com os elementos do Stream
    DATA nPos             // Elemento atual do Stream 
+   DATA nSize            // Tamanho atual do Stream ( elementos ) 
    
    METHOD NEW()          // Concstrutor 
    METHOD LOADSTR()      // Carrega um stream da binary String gerada pelo ::SaveStr()
    METHOD SAVESTR()      // Salva o Stream em uma Binary String 
    METHOD CLEAR()        // Limpa o Stream 
-   METHOD READ()         // Lê a prixima informação do Stream 
+   METHOD READ()         // Lê a informação da posição atual do Stream e posiciona na próxima
    METHOD WRITE()        // Acrescenta uma variável no Stream
-   METHOD WRITEOBJ()     // Acrescenta um Objeto no Stream 
+   METHOD EOF()          // Verifica se o stream está no final 
 
 ENDCLASS
 
@@ -32,6 +32,7 @@ ENDCLASS
 METHOD NEW() CLASS ZSTREAM 
 ::aStream := {}
 ::nPos := 1
+::nSize := 0 
 Return SELF
 
 // ----------------------------------------
@@ -43,6 +44,7 @@ If left(cBuffer,11) == "#_ZSTREAM_#"
 	cBuffer := Substr(cBuffer,12)
 	BinStr2Var( cBuffer, ::aStream ) 
 	::nPos := 1
+	::nSize := len(::aStream)
 	Return .T. 
 Endif
 Return .F. 
@@ -62,52 +64,21 @@ Return .T.
 METHOD CLEAR() CLASS ZSTREAM 
 ::aStream := {}
 ::nPos := 1
+::nSize := 0
 Return
 
 // ----------------------------------------
 // Leitura por referência do stream , na ordem de gravação 
 
 METHOD READ(xValue) CLASS ZSTREAM 
-Local cType := ::aStream[::nPos][1] 
-Local aObjData 
-Local nI
-Local cMacro, bBlock
 
-If cType ==  'O'      
+// Recupero o elemento atual 
+BinStr2Var( ::aStream[nPos][2] , xValue  )
 
-	// É um objeto, pego o array com as propriedades
-	BinStr2Var( ::aStream[::nPos][2] , aObjData )
-
-	// Agora popula as propriedades no Objeto 
-	For nI := 1 to len(aObjData)
-
-		// Monto um codebloc dinamico para atualizar a 
-		// propriedade . Recebo o objeto e o valor a ser atualizado 
-		cMacro := "{|o,x| o:"+aObjData[nI][1]+" := x }"
-		bBlock := &(cMacro)
-		
-		// Rodo a atualização do valor 
-		Eval(bBlock,xValue,aObjData[nI][2])
-
-		// Quebro as referencias 
-		bBlock := NIL
-		 	
-	Next
-	
-	// Quebro as referencias 
-	aObjData := NIL 
-	
-Else
-
-	// Nao é objeto, pego o que tem e recupero 
-	BinStr2Var( ::aStream[nPos][2] , xValue  )
-
-Endif
-
-// Próxima posição para leitura 
+// Posiciona na próxima posição para leitura 
 ::nPos++
 
-Return
+Return 
 
 // ----------------------------------------
 // Escreve um valor no Stream. 
@@ -121,74 +92,19 @@ If cType $ 'CNDLMAU'
 	// Coloca o tipo junto 
 	Var2BinStr(xValue,cBuffer)
 	aadd(::aStream,{cType,cBuffer})
+	::nSize := len(::aStream)
+	::nPos := ::nSize + 1 
 	cBuffer := ''
-ElseIF cType == 'O'
-	// Se for um objeto, acrescenta com todas as propriedades 
-	// Caso seja necessário salvar apenas algumas propriedades, 
-	// deve ser usado o método WriteObj()
-	::WRITEOBJ(xValue)
 Else
 	UserException("ZSTREAM:Write() -- Unsupported Type "+cType)
 Endif
 Return 
 
 // ----------------------------------------
-// Método para salvar especificamente um objeto 
-// Por default salva todas as propriedades suportadas 
+// Verifica se o stream acabou ou está no final 
 
-METHOD WRITEOBJ(oObj,lParent,cPropList) CLASS ZSTREAM 
-Local cBuffer := ''
-Local aObjData, aSelData := {}
-Local aPropList
-Local nI, nJ 
+METHOD EOF() CLASS ZSTREAM 
+Return ::nPos > ::nSize
 
-// Parametros opcionais - default 
-If lParent = NIL ; lParent := .F. ; Endif
-If cPropList = NIL ; cPropList := '' ; Endif
 
-// Pega todas as propriedades da classe
-aObjData := ClassDataArr(oObj,lParent)
-
-If !empty(cPropList)
-	
-	// Pega lista de propriedades separadas por virgula
-	aPropList := StrTokarr(cPropList,",")
-	
-	// Varre as propriedades da classe para salvar 
-	// apenas as propriedades que batem com a lista 
-	// pode ser usado "*" e "?"
-	For nI := 1 to len(aObjData)
-		lMatch := .F.
-		For nJ := 1 to len(aPropList)
-			IF match( lower(aObjData[nI][1]) , lower(aPropList[nJ]) )
-				lMatch := .T.
-				EXIT
-			Endif
-		Next
-		If lMatch .and. ValType(aObjData[nI][2]) $ 'CNDLMAU'
-			// Acrescenta referencia no que deve ser guardado 
-			AADD(aSelData,aObjData[nI])
-		Endif
-	Next		
-		
-	// Guarda no stream as propriedades relacionadas 
-	Var2BinStr( aSelData , cBuffer ) 
-	
-Else
-
-	// Nao tem listam guarda TUDO 
-	Var2BinStr( aObjData , cBuffer )
-	
-Endif
-
-// Guarda este valor no Stream Array 
-// Coloca o tipo junto 
-aadd(::aStream, { 'O' , cBuffer } )
-
-// Quebra as referências
-aObjData := NIL
-aSelData := NIL
-cBuffer := ''
-
-Return 
 

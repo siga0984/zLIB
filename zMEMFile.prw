@@ -29,7 +29,7 @@ CLASS ZMEMFILE FROM ZISAMFILE
   DATA lExclusive           // Arquivo aberto em modo exclusivo ?
   DATA lUpdPend             // Flag indicando update pendente 
   DATA lSetDeleted          // Filtro de registros deletados ativo 
-  DATA nRecno				// Número do registro (RECNO) atualmnete posicionado 
+  DATA oLogger              // Objeto de log 
 
   // ========================= Metodos de uso público da classe
 
@@ -74,8 +74,13 @@ Return "MEMORY"
 // ----------------------------------------------------------
 // Construtor do objeto DBF 
 // Apenas recebe o nome do arquivo e inicializa as propriedades
+// Inicializa o ZISAMFILE passando a instancia atual 
 
 METHOD NEW(cFile,oFileDef) CLASS ZMEMFILE 
+_Super:New(self)
+
+::oLogger := ZLOGGER():New("ZMEMFILE")
+::oLogger:Write("NEW","File: "+cFile)
 
 ::_InitVars() 
 ::cMemFile   := lower(cFile)
@@ -281,6 +286,11 @@ Return .F.
 // a partir da posiçao do campo na estrutura
 
 METHOD FieldGet(nPos) CLASS ZMEMFILE 
+
+If valtype(nPos) = 'C'
+	nPos := ::FieldPos(nPos)
+Endif
+
 If nPos > 0 .and. nPos <= ::nFldCount 
 	Return ::aGetRecord[nPos]
 Endif
@@ -292,6 +302,10 @@ Return NIL
 // Por hora nao critica nada, apenas coloca o valor no array 
 
 METHOD FieldPut(nPos,xValue) CLASS ZMEMFILE 
+
+If valtype(nPos) = 'C'
+	nPos := ::FieldPos(nPos)
+Endif
 
 If ( !::lCanWrite )
 	UserException("Invalid FieldPut() -- File NOT OPEN for WRITING")

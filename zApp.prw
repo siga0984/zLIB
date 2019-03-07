@@ -11,12 +11,9 @@ Projetada inicialmente para SmartClient
 
 CLASS ZAPP FROM LONGNAMECLASS
 
-   DATA oAppInterface
-   DATA oAppObject
+   DATA oRunObject
    
    METHOD New() 					// Construtor 
-   METHOD SetInterface()            // Seta o objeto de interface
-   METHOD SetObject()				// Seta o objeto de dados 
    METHOD Run()						// Roda a Aplicação 
    METHOD Done()                    // Finaliza os objetos 
   
@@ -31,67 +28,26 @@ Return self
 
 
 // ------------------------------------------------------
-// Seta o objeto de interface da aplicação 
+// Executor da aplicação
+// Recebe o componente a ser executado 
 
-METHOD SetInterface(oIntf) CLASS ZAPP
-::oAppInterface := oIntf
-Return
+METHOD Run(oRunObject) CLASS ZAPP
 
-// ------------------------------------------------------
-// Seta o objeto de controle da aplicação 
+::oRunObject := oRunObject
 
-METHOD SetObject(oAppObj) CLASS ZAPP
-::oAppObject := oAppObj
-Return
-
-// ------------------------------------------------------
-// Executor da aplicação 
-// Faz a inicializaçào do objeto de controle 
-// Em caso de sucesso, amarra o objeto 
-// na interface e roda a interface
-
-METHOD Run() CLASS ZAPP
-
-If ::oAppObject = NIL 
-	UserException("ZAPP:Run() -- AppObject NOT SET ")
-Endif
-
-If ::oAppInterface = NIL 
+If ::oRunObject = NIL
 	UserException("ZAPP:Run() -- AppInterface NOT SET ")
 Endif
 
-If ::oAppObject:Init()
-
-	// Passou da inicialização 
-	// Amarra o objeto e roda a interface 
-	
-	::oAppInterface:SetObject(::oAppObject)
-	::oAppInterface:Run()
-
-Else
-	
-	MsgStop( ::oAppObject:GetErrorStr() , "Failed to INIT AppObject" )
-
-Endif
+::oRunObject:Run()
 
 Return
 
 
 // ------------------------------------------------------
-// Finalizador / Desrtrutor 
-// Limpa os objetos amarrados ao ZAPP 
+// Finalizador / Desrtrutor
 
 METHOD DONE() CLASS ZAPP
-
-IF ::oAppInterface != NIL 
-	::oAppInterface:Done()
-	FreeObj(::oAppInterface)
-Endif
-
-If ::oAppObject != NIL 
-	::oAppObject:Done()
-	FreeObj(::oAppObject)
-Endif
 
 Return
 

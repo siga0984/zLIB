@@ -28,10 +28,10 @@ duas instancias da classe no ambiente
 CLASS ZDBACCESS FROM LONGNAMECLASS
 
    DATA nTopConn      // Handler da conexao com o DBAccess
-   DATA cDBDatabase     // Database da conexao ( MSSQL, ORACLE, MYSQL, etc ) 
+   DATA cDBDatabase   // Database da conexao ( MSSQL, ORACLE, MYSQL, etc ) 
    DATA cDbAlias      // Alias / DSN da Conexão 
-   DATA cDBServer    // IP ou Host do DBACcess
-   DATA nDBPort      // Porta do DBAccess
+   DATA cDBServer     // IP ou Host do DBACcess
+   DATA nDBPort       // Porta do DBAccess
    DATA lUsePool      // Usa pool de conexão do Protheus ?
    DATA cPoolId       // Nome do identificador do POOL 
    DATA nRefs         // Contador de referências
@@ -267,7 +267,7 @@ Endif
 // Seta a conexao atual como ativa 
 TCSetConn(::nTopConn)
 
-Return
+Return .T. 
 
 // ----------------------------------------------------------
 // Recupera a ultima mensagem de erro 
