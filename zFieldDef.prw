@@ -22,13 +22,23 @@ CLASS ZFIELDDEF FROM LONGNAMECLASS
    DATA cLabel                         // Label ou descrição curta do campo 
    DATA cDescr                         // Descrição longa do campo 
    DATA cPicture                       // Mascara de dados do campo 
-   DATA lRequired                       // Campo de preenchimento Requiredório -- nao pode estar vazio 
+   DATA lRequired                      // Campo de preenchimento Requiredório -- nao pode estar vazio 
    DATA lEnabled                       // Indica se o campo habilitado 
    DATA lVisible                       // Indica se o campo está visivel 
-   DATA lReadOnly                      // Indica se o campo somente pode ser lido -- mas nao editado 
+   DATA lReadOnly                      // Indica se o campo somente pode ser lido -- mas nao editado \
+   DATA lVirtual                       // Indica se o campo é virtual 
+   DATA cLookTab                       // Tabela da chave estrangeira do campo  
+   DATA cLookKey                       // Campo Chave da Chave estrangeira
+   DATA cLookFld                       // Campo ou expressao relacionada a tabela estrangeira 
 
    METHOD New()                        // Construtor 
    METHOD SetLabel()                   // Informa label e descrição do campo 
+
+   METHOD SetLookUp()                  // Informa tabela , chave e campo a recuperar 
+   METHOD GetLookTable()               // Tabela da chave estrangeira 
+   METHOD GetLookKey()                 // Chave da Chave Estrangeira 
+   METHOD GetLookField()               // Campo ou Expressao da Tabela Estrangeira 
+
    METHOD SetPicture()                 // Coloca máscara no campo
    METHOD GetField()                   // Recupera o nome do campo 
    METHOD GetLabel()                   // Recupera o label informado 
@@ -41,11 +51,13 @@ CLASS ZFIELDDEF FROM LONGNAMECLASS
    METHOD SetEnabled()                 // Seta se o campo está habilitado 
    METHOD SetVisible()                 // Seta se o campo está visivel 
    METHOD SetReadOnly()                // Seta se o campo é somente leitura ( nao editavel ) 
-   METHOD SetRequired()                 // Seta se o campo é de preenchimento Requiredório 
+   METHOD SetVirtual()                 // Seta se o campo é virtual 
+   METHOD SetRequired()                // Seta se o campo é de preenchimento Requiredório 
    METHOD IsEnabled()                  // Consulta se o campo está habilitado 
    METHOD IsVisible()                  // Consulta se o campo está visivel 
    METHOD IsReadOnly()                 // Consulta se o campo somente pode ser lido ( não editável ) 
    METHOD IsRequired()                 // Retorna se o campo é de preencimento Requiredorio 
+   METHOD IsVirtual()                  // Retorna se o campo é virtual 
    
 ENDCLASS 
 
@@ -66,6 +78,11 @@ METHOD NEW(cFld,cType,nSize,nDec) CLASS ZFIELDDEF
 ::lEnabled   := .T. 
 ::lVisible   := .T. 
 ::lReadOnly  := .F. 
+::lVirtual   := .F. 
+::cLookTab := ""
+::cLookKey := ""
+::cLookFld := ""
+
 Return self
 
 
@@ -82,6 +99,34 @@ Return
 METHOD SetPicture(cPict) CLASS ZFIELDDEF
 ::cPicture := cPict
 Return
+
+// ------------------------------------------------------
+// Seta Tabela e campo da chave estrangeira 
+// O campo normalmente é um UNIQUE INDEX 
+
+METHOD SetLookUp(cFTable,cFKey,cFField) CLASS ZFIELDDEF  
+::cLookTab := cFTable
+::cLookKey := cFKey
+::cLookFld := cFField
+Return
+
+// ------------------------------------------------------
+// Recupera tabela da chave estrangeira 
+
+METHOD GetLookTable() CLASS ZFIELDDEF  
+Return ::cLookTab
+
+// ------------------------------------------------------
+// Recupera campo da chave estrangeira 
+
+METHOD GetLookKey() CLASS ZFIELDDEF  
+Return ::cLookKey
+
+// ------------------------------------------------------
+// Informacao a ser mostrada do relacionamento 
+
+METHOD GetLookField() CLASS ZFIELDDEF  
+Return ::cLookFld
 
 // ------------------------------------------------------
 // Recupera o nome do campo 
@@ -184,6 +229,12 @@ METHOD SetReadOnly(lSet) CLASS ZFIELDDEF
 ::lReadOnly   := lSet
 Return
 
+// ------------------------------------------------------
+
+METHOD SetVirtual(lSet) CLASS ZFIELDDEF
+::lVirtual   := lSet
+Return
+
 
 // ------------------------------------------------------
 
@@ -201,4 +252,10 @@ Return ::lVisible
 
 METHOD IsReadOnly() CLASS ZFIELDDEF
 Return ::lReadOnly
+
+// ------------------------------------------------------
+
+METHOD IsVirtual() CLASS ZFIELDDEF
+Return ::lVirtual
+
 

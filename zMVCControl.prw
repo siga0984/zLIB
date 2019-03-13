@@ -3,8 +3,7 @@
 
 /* ======================================================
 
-Classe de Controle Modelo 
-
+Classe de Controle DEFAULT
 
 Controller Layer:
 
@@ -19,12 +18,15 @@ Controller Layer:
 
 CLASS ZMVCCONTROL FROM LONGNAMECLASS
 
+   DATA aModels
    DATA oModel
    DATA oView
    DATA cError
    DATA oLogger                  // Objeto de log 
 
    METHOD NEW()
+   METHOD AddModel()
+   METHOD SetModel()
    METHOD GetObjectDef()
    METHOD GetErrorStr()
    METHOD SetError()
@@ -44,21 +46,53 @@ ENDCLASS
 
 // ------------------------------------------------------
 // Construtor do Controle
-// Recebe o modelo e a view (interface)
+// Recebe a view ?!
 
-METHOD NEW(oModel,oView) CLASS ZMVCCONTROL
+METHOD NEW(oView) CLASS ZMVCCONTROL
 
-::oModel := oModel
-::oView  := oView
-::cError := ''
+::oModel  := NIL
+::oView   := oView
+::cError  := ''
+::aModels := {}
 
 // Informa o Controler para a View 
 ::oView:SetControl(self)
 
 ::oLogger := ZLOGGER():New("ZMVCCONTROL")
-::oLogger:Write("NEW","Contol based on Model ["+GetClassName(oModel)+"] View ["+GetClassName(oView)+"]" )
+::oLogger:Write("NEW","Contol based on View ["+GetClassName(oView)+"]" )
 
 Return self
+
+
+// ----------------------------------------------------------
+// Acrescenta um modelo de controle
+
+METHOD AddModel( oModel ) CLASS ZMVCCONTROL
+::oLogger:Write("AddModel","Add Model ["+GetClassName(oModel)+"]" )
+AADD( ::aModels , oModel )
+If ::oModel = NIL
+	::oLogger:Write("AddModel","Main Model id ["+GetClassName(oModel)+"]" )
+	::oModel := oModel
+Endif
+Return
+
+
+// ----------------------------------------------------------
+// Troca o modelo ativo 
+
+METHOD SetModel(_cTable) CLASS ZMVCCONTROL
+Local nPos 
+nPos := ascan( ::aModels , {|x| x:cTable == _cTable } )
+If nPos > 0 
+	If ::oModel != ::aModels[nPos]
+		::oModel := ::aModels[nPos]
+		::oLogger:Write("SetModel","Change model to ["+_cTable+"]" )
+	Endif
+Else
+	UserException("ZMVCCONTROL:SetModel() ERROR - Model ["+_cTable+"] not found")
+Endif
+Return
+
 
 // ----------------------------------------------------------
 // Pede para o modelo a definição do componente
@@ -126,6 +160,7 @@ Return ::cError
 
 METHOD SetError(cError) CLASS ZMVCCONTROL
 ::cError := cError
+::oLogger:Write("SetError",cError)
 Return
 
 // ----------------------------------------------------------
@@ -148,22 +183,25 @@ lRet := ::oModel:Search(aRecord,aFound,lExact)
 Return lRet
 
 // ----------------------------------------------------------
-// Retorna as ações adicionais do componente 
+// Retorna as ações do componente / Modelo
 
 METHOD GetActions() CLASS ZMVCCONTROL
-
 ::oLogger:Write("GetActions")
-
 Return ::oModel:GetObjectDef():GetActions()
 
 
-METHOD RunAction(nAct) CLASS ZMVCCONTROL
+// ----------------------------------------------------------
+// Executa uma ação nomeada do componente / Modelo
+
+METHOD RunAction(cAction) CLASS ZMVCCONTROL
 Local lOk 
-::oLogger:Write("RunAction")
+::oLogger:Write("RunAction","Action="+cAction)
 ::ClearError()
-lOk := ::oModel:RunAction(nAct)
+lOk := ::oModel:RunAction(cAction)
 If !lOk
 	::cError := ::oModel:GetErrorStr()
 Endif
 Return lOk
+
+
 

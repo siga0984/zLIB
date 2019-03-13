@@ -56,8 +56,8 @@ CLASS ZMVCMODEL FROM LONGNAMECLASS
 
   METHOD VldConstraints()       // Roda Validação de Constraints dos campos 
 
-  METHOD RecordGet()            // Recupera o valor de um campo do registro atual 
-  METHOD RecordPut()            // Seta valor de um campo no registro atual 
+  METHOD FieldGet()            // Recupera o valor de um campo do registro atual 
+  METHOD FieldPut()            // Seta valor de um campo no registro atual 
  
   METHOD NewRecord()            // Cria registro em branco para inserção 
   METHOD Write()                // Insere um novo registro na base de dados 
@@ -131,16 +131,32 @@ Endif
 lOk := ::oDBConn:Connect()
 
 If !lOk   
-	MsgStop( ::oDBConn:GetErrorStr() , "Falha de Conexão" )
-	Return 
+	::SetError( ::oDBConn:GetErrorStr() )
+	Return .F. 
 Endif
 
-// REcupera o objeto da tabela 
+// Recupera o objeto da tabela 
 ::GetTableObj()
 
-// Verifica a estutura fisica da tabela versus
-// a estrutura da definição da tabela 
-::oObjectTable:UpdStruct(::oObjectDef)
+// Verifica se a tabela existe. Se nao existir, cria
+
+If !::oObjectTable:Exists()
+
+	// Cria a tabela baseado na estrutura da definicao
+	lOk := ::oObjectTable:Create( ::oObjectDef:GetStruct() )
+
+Else
+
+	// Verifica a estutura fisica da tabela versus
+	// a estrutura da definição da tabela 
+	lOk := ::oObjectTable:UpdStruct(::oObjectDef)
+
+Endif
+
+If !lOk
+	::SetError( ::oObjectTable:GetErrorStr() )
+	Return .F. 
+Endif
 
 // Desconecta 
 ::oDBConn:Disconnect()
@@ -199,9 +215,9 @@ Return ::oObjectDef:RunEvents(nEvent,self)
 // ele precisa passar-se como parametro 
 // Passa o registro em foco também como parametro
 
-METHOD RunAction(nAct) CLASS ZMVCMODEL
-::oLogger:Write("RunAction","Action="+cValToChar(nAct))
-Return ::oObjectDef:RunAction(nAct,self)
+METHOD RunAction(cAction) CLASS ZMVCMODEL
+::oLogger:Write("RunAction","Action="+cAction)
+Return ::oObjectDef:RunAction(cAction,self)
 
 // ----------------------------------------------------------
 // Cria registro em branco para inserção 
@@ -215,6 +231,7 @@ Local nI
 
 ::oLogger:Write("NewRecord")
 
+// Limpa o registro atual 
 aSize(::aRecord,0)
 aSize(aRecord,0)
 
@@ -267,7 +284,7 @@ If !lOk
 Endif
 
 // Antes de rodar os eventos, atualiza o 
-// array de dqados do registro da classe
+// array de dados do registro da classe
 
 ::aRecord := aClone(aRecord)
 
@@ -312,6 +329,9 @@ If lOk
 
 Endif
 
+// Zera o registro atual da memoria 
+aSize(::aRecord,0)
+
 // Fecha a tabela 
 ::oObjectTable:Close()
 
@@ -326,7 +346,7 @@ Return lOk
 // O registro corrente é mantido em memoria em um array 
 // no formato [1] campo [2] conteudo 
 
-METHOD RecordGet(xPos) CLASS ZMVCMODEL
+METHOD FieldGet(xPos) CLASS ZMVCMODEL
 
 If valtype(xPos) = 'C'
 	xPos := Ascan(::aRecord , {|x| x[1] == xPos })
@@ -343,7 +363,7 @@ Return NIL
 // O registro corrente é mantido em memoria em um array 
 // no formato [1] campo [2] conteudo 
 
-METHOD RecordPut(xPos,xValue) CLASS ZMVCMODEL
+METHOD FieldPut(xPos,xValue) CLASS ZMVCMODEL
 
 If valtype(xPos) = 'C'
 	xPos := Ascan(::aRecord , {|x| x[1] == xPos })
@@ -360,9 +380,13 @@ Return
 // informados. 
 
 METHOD Search(aRecord,aFound)  CLASS ZMVCMODEL
+Local nI
 
 ::ClearError()
 ::oLogger:Write("Search")
+
+// Limpa o registro atual 
+aSize(::aRecord,0)
 
 lOk := ::oDBConn:Connect()
 
@@ -386,6 +410,10 @@ lOk := ::RunEvents( ZDEF_ONSEARCH )
 
 If lOk
 
+	For nI := 1 to len(aRecord)
+		::oLogger:Write("Search","Search for "+aRecord[nI][1]+"="+cValToChar(aRecord[nI][2]))
+	Next
+	
 	// Realiza a busca na tabela 
 	lOk := ::oObjectTable:Search(aRecord,aFound)
     
@@ -417,9 +445,13 @@ Local lOk
 Local nRecno := 0
 Local nPos
 Local aUpdate := {}
+Local nI
 
 ::ClearError()
 ::oLogger:Write("Update")
+
+// Zera o registro atual da memoria 
+aSize(::aRecord,0)
 
 nPos := ascan(aRecord,{|x| x[1] == 'RECNO' })
 If nPos > 0 
@@ -486,7 +518,6 @@ Endif
 
 If lOk
 
-
 	// Atualiza os campos -- Mas somente os campos diferentes 
 	nTot := len(::aRecord)
 	For nFld := 1 to nTot
@@ -497,19 +528,26 @@ If lOk
 		Endif
 	Next
 
-	// VERBOSE -- apenas campos alterados 
-	conout(padc(' ZMVCMODEL:UPDATE() ',79,'-'))	
-	aeval( aUpdate , {|x|  conout(x[1]+" = "+cValToChar( x[2] )  ) })
-	conout(replicate('-',79)+CRLF)
+	if len(aUpdate) > 0 
 
-	// Efetiva as alterações
-	lOk := ::oObjectTable:Update()
+		// VERBOSE -- apenas campos alterados 
+		conout(padc(' ZMVCMODEL:UPDATE() ',79,'-'))	
+		aeval( aUpdate , {|x|  conout(x[1]+" = "+cValToChar( x[2] )  ) })
+		conout(replicate('-',79)+CRLF)
+	
+		// Efetiva as alterações
+		lOk := ::oObjectTable:Update()
+	
+		If !lOk
+		   ::SetError( ::oObjectTable:GetErrorStr() )
+		Endif
 
-	If !lOk
-	   ::SetError( ::oObjectTable:GetErrorStr() )
 	Endif
-
+	
 Endif
+            
+// Zera o registro atual da memoria 
+aSize(::aRecord,0)
 
 // Fecha a tabela 
 ::oObjectTable:Close()
@@ -518,6 +556,11 @@ Endif
 ::oDBConn:Disconnect()
 
 Return lOk
+
+
+// ----------------------------------------------------------
+// Valida as constraints dos campos
+// Por exemplo, se o campo é obrigatório e nao está preenchido 
 
 METHOD VldConstraints() CLASS ZMVCMODEL
 Local aFieldsDef

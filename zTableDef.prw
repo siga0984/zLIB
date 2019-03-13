@@ -22,11 +22,10 @@ CLASS ZTABLEDEF FROM LONGNAMECLASS
    METHOD New()                        // Construtor 
    METHOD SetStruct()                  // Seta uma estrutura ( Array formato DBF ) 
    METHOD GetStruct()                  // Recupera a estrutura ( Array Formato DBF ) 
-   METHOD NewFieldDef()                // Cria um objeto de definicao estendida de campo 
+   METHOD AddFieldDef()                // Acrescenta um campo e sua definição estendida
    METHOD GetFieldDef()                // Retorna o onjeto da definicao de um campo pelo nome 
    METHOD GetFields()                  // Retorna o array com a deefinição de todos os campos 
-   METHOD AddField()                   // ACrescenta um campo na estrutura 
-   METHOD AddFieldDef()                // Acrescenta definição de campo 
+   METHOD AddField()                   // Acrescenta um campo na estrutura 
    METHOD AddIndex()                   // Acrescenta uma expressao de indice 
    METHOD SetUnique()                  // Seta expressao de chave unica 
    METHOD AddEvent()                   // Acrescenta um evento na definição 
@@ -65,23 +64,19 @@ METHOD GetStruct() CLASS ZTABLEDEF
 Return aClone(::aStruct)
 
 // ------------------------------------------------------
+// Cria e acrescenta objeto da definição estendida de campo 
 
-METHOD NewFieldDef(cName) CLASS ZTABLEDEF
-Local nPos 
+METHOD AddFieldDef(cName,cType,nSize,nDec) CLASS ZTABLEDEF
 Local oFieldDef 
-Local aFld
 
-// Busca o campo na estrutura fisica 
-nPos := ascan( ::aStruct , {|x| x[1] == cName })
-If nPos = 0  
-	UserException("ZTABLEDEF:NewFieldDef()-- Field ["+cName+"] not found")
-Endif
-
-// Pega os dados da estrutura apenas deste campo 
-aFld := ::aStruct[nPos]
+// Acrescenta o campo na estrutura fisica
+::AddField(cName,cType,nSize,nDec)
 
 // Cria a definicao extendida baseada no campo 
-oFieldDef := ZFIELDDEF():NEW( aFld[1] , aFld[2] , aFld[3] , aFld[4] )
+oFieldDef := ZFIELDDEF():NEW( cName,cType,nSize,nDec )
+
+// Acrescenta na definição
+AADD( ::aFieldDef  , oFieldDef ) 
 
 Return oFieldDef
 
@@ -146,14 +141,6 @@ AADD( ::aStruct , {cName,cType,nSize,nDec} )
 Return
 
 // ------------------------------------------------------
-// Acrescenta uma definição de campo na estrutura 
-// Deve ser um objeto de definicao de campo 
-
-METHOD AddFieldDef(oFldDef) CLASS ZTABLEDEF
-AADD( ::aFieldDef  , oFldDef ) 
-Return
-
-// ------------------------------------------------------
 // Acrescenta uma expressao de indice na tabela 
 
 METHOD AddIndex(cIdxExpr) CLASS ZTABLEDEF
@@ -200,9 +187,14 @@ Return lOk
 
 // ------------------------------------------------------
 
-METHOD RunAction(nAct,oModel) CLASS ZTABLEDEF
-Local lOk
-lOk := Eval(::aActions[nAct][2] , oModel )
+METHOD RunAction(cAction,oModel) CLASS ZTABLEDEF
+Local lOk := .F.
+Local nPos := ascan(::aActions,{|x| x[1] == cAction})
+If nPos > 0 
+	lOk := Eval(::aActions[nPos][3] , oModel )
+Else
+	oModel:SEtError("RunAction Failed - Action ["+cAction+"] not found.")
+Endif
 Return lOk
 
 
@@ -224,12 +216,17 @@ Return
 // ------------------------------------------------------
 // Acrescenta uma ação do componente
 
-METHOD AddAction(cTitle,bAction) CLASS ZTABLEDEF
-AADD( ::aActions , { cTitle,bAction } )
+METHOD AddAction(cName,cTitle,bAction) CLASS ZTABLEDEF  
+AADD( ::aActions , { cName,cTitle,bAction } )
 Return
 
 // ------------------------------------------------------
-//
+// Array de ações 
+// [1] Nome 
+// [2] Label 
+// [3] CodeBlock
+// Se a ação for default / reservada, ela apenas vai ter 
+// o nome preenchido, e as demais colunas "NIL"
 
 METHOD GetActions() CLASS ZTABLEDEF
 Return ::aActions

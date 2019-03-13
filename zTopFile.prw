@@ -511,7 +511,8 @@ Endif
 
 If !::lUpdPend
 	// Nao tem update pendente, nao faz nada
-	Return
+	::oLogger:Write("Update","Nothing to do...")
+	Return .T. 
 Endif
 
 If !lHasLock
@@ -693,13 +694,21 @@ If len(aDefStru) > len(aDbStru)
 
 	MsgInfo("Estrutura da Tabela ["+::cFileName+"] ajustada automaticamente.")
 
-ElseIf zCompare(aDbStru,aDefStru) <> 0 
+Else
 
-	// Se nao tem campos novos, mas as estruturas estao diferentes
-	// pode ter havido alteração de parametros. Verificar o que fazer...
+	// Sorteia as estruturas por nome para comparar 
+	aSort(aDbStru,,,{|x1,x2| x1[1] < x2[1] })
+	aSort(aDefStru,,,{|x1,x2| x1[1] < x2[1] })
 
-	::_SetError("Definição diferente da estrutura da tabela.")
-	Return .F. 
+	If zCompare(aDbStru,aDefStru) <> 0 
+
+		// Se nao tem campos novos, mas as estruturas estao diferentes
+		// pode ter havido alteração de parametros. Verificar o que fazer...
+
+		::_SetError("Definição diferente da estrutura da tabela.")
+		Return .F. 
+	
+	Endif
 
 Endif
 
