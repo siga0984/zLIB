@@ -9,6 +9,7 @@
   #define ZDEF_ONDELETE    8
   #define ZDEF_ONSEARCH    16
   #define ZDEF_ONCANCEL    32
+  #define ZDEF_ONGETDATA   64
 
 #endif
 

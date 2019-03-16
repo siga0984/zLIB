@@ -8,7 +8,7 @@
   #define ZDEF_ONDELETE    8
   #define ZDEF_ONSEARCH    16
   #define ZDEF_ONCANCEL    32
-
+  #define ZDEF_ONGETDATA   64
 */
 
 
@@ -63,6 +63,7 @@ CLASS ZMVCMODEL FROM LONGNAMECLASS
   METHOD Write()                // Insere um novo registro na base de dados 
   METHOD Search()               // Busca o primeiro registro a atender os criterios 
   METHOD Update()               // Atualiza um registro da tabela 
+  METHOD GetData()              // Recupera os dados da tabela 
 
 ENDCLASS
 
@@ -329,9 +330,6 @@ If lOk
 
 Endif
 
-// Zera o registro atual da memoria 
-aSize(::aRecord,0)
-
 // Fecha a tabela 
 ::oObjectTable:Close()
 
@@ -385,7 +383,7 @@ Local nI
 ::ClearError()
 ::oLogger:Write("Search")
 
-// Limpa o registro atual 
+// Limpa o registro atual da memoria 
 aSize(::aRecord,0)
 
 lOk := ::oDBConn:Connect()
@@ -455,10 +453,8 @@ aSize(::aRecord,0)
 
 nPos := ascan(aRecord,{|x| x[1] == 'RECNO' })
 If nPos > 0 
-	// Identifica o RECNO e remove ele das demais informações 
+	// Identifica o RECNO 
 	nRecno := aRecord[nPos][2]
-	aDel(aRecord,nPos)
-	aSize(aRecord,len(aRecord)-1)
 Else
 	::SetError( "RECNO não informado para UPDATE" )
 	Return .F. 
@@ -522,6 +518,10 @@ If lOk
 	nTot := len(::aRecord)
 	For nFld := 1 to nTot
 		nPos := ::oObjectTable:FieldPos(::aRecord[nFld][1])
+		If nPos <= 0 
+			::oLogger:Write("Update","Warning: Field ["+::aRecord[nFld][1]+"] not found.")
+			Loop
+		Endif
 		If ::oObjectTable:FieldGet(nPos) <> ::aRecord[nFld][2]
 			::oObjectTable:FieldPut(::aRecord[nFld][1],::aRecord[nFld][2])
 			aadd(aUpdate , { ::aRecord[nFld][1],::aRecord[nFld][2] } )
@@ -546,8 +546,73 @@ If lOk
 	
 Endif
             
-// Zera o registro atual da memoria 
-aSize(::aRecord,0)
+// Fecha a tabela 
+::oObjectTable:Close()
+
+// e Desconecta do banco 
+::oDBConn:Disconnect()
+
+Return lOk
+
+
+// ----------------------------------------------------------
+// Recupera os dados da tabela
+
+METHOD GetData(aCols,aData) CLASS ZMVCMODEL
+Local aRow := {}
+Local lOk
+Local nFlds
+Local nI
+
+::ClearError()
+::oLogger:Write("GetData")
+
+lOk := ::oDBConn:Connect()
+
+IF !lOk   
+	::SetError( ::oDBConn:GetErrorStr() )
+   Return .F. 
+Endif
+
+::GetTableObj()
+
+// Shared, Read
+lOk := ::oObjectTable:Open(.F.,.F.)
+
+If !lOk
+   ::SetError( ::oObjectTable:GetErrorStr() )
+   Return .F. 
+Endif
+
+// Roda evento antes da busca por dados 
+lOk := ::RunEvents( ZDEF_ONGETDATA ) 
+
+IF lOk
+
+	// Beleza, agora vamos pegar os dados que interessam 
+	nFlds := ::oObjectTable:FCount()
+	::oObjectTable:GoTop()
+
+	For nI := 1 to nFlds
+		aadd(aCols,::oObjectTable:FieldName(nI))
+	Next
+	
+	While !::oObjectTable:EOF()
+
+		aRow := {}
+		For nI := 1 to nFlds
+			aadd(aRow,::oObjectTable:FieldGet(nI))
+		Next
+		aadd(aRow,::oObjectTable:Recno())
+		aadd(aRow,::oObjectTable:Deleted())
+		
+		AADD(aData,aRow)
+		
+		::oObjectTable:Skip()
+	
+	Enddo
+
+Endif
 
 // Fecha a tabela 
 ::oObjectTable:Close()

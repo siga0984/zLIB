@@ -27,6 +27,7 @@ CLASS ZMVCCONTROL FROM LONGNAMECLASS
    METHOD NEW()
    METHOD AddModel()
    METHOD SetModel()
+   METHOD GetModel()
    METHOD GetObjectDef()
    METHOD GetErrorStr()
    METHOD SetError()
@@ -40,6 +41,7 @@ CLASS ZMVCCONTROL FROM LONGNAMECLASS
    METHOD Write()
    METHOD Search() 
    METHOD Update() 
+   METHOD GetData()
 
 ENDCLASS 
 
@@ -93,7 +95,14 @@ Else
 Endif
 Return
 
+// ----------------------------------------------------------
+// Retorna a tabela do modelo ativo 
 
+METHOD GetModel()   CLASS ZMVCCONTROL
+Local cTabModel := ::oModel:cTable
+::oLogger:Write("GetModel","Current Model is ["+cTabModel+"]" )
+Return cTabModel
+   
 // ----------------------------------------------------------
 // Pede para o modelo a definição do componente
 
@@ -146,6 +155,20 @@ Local lRet
 
 lRet := ::oModel:Update(aRecord)
 ::cError := ::oModel:GetErrorStr()
+Return lRet
+
+// ----------------------------------------------------------
+// Retorna os dados da tabela através do modelo 
+// Por hora retorna TUDO 
+
+METHOD GetData(aCols,aData) CLASS ZMVCCONTROL
+Local lRet
+
+::oLogger:Write("GetData")
+
+lRet := ::oModel:GetData(aCols,aData)
+::cError := ::oModel:GetErrorStr()
+
 Return lRet
 
 // ----------------------------------------------------------

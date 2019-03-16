@@ -3,18 +3,78 @@
 
 #define CALCSIZEGET( X )  (( X * 4 ) + 8)      
 
+// Resolucao padrao de video usada 
 #define VIDEO_RES_WIDTH    1024
 #define VIDEO_RES_HEIGHT    768
 
-#define VIEW_FR_COLOR      CLR_WHITE
-#define VIEW_BG_COLOR      CLR_BLACK
-#define VIEW_LOOKUP_COLOR  CLR_YELLOW
+// --------------------------
+// Escolha do padrao de cores 
 
-#define VIEW_GETFR_COLOR      CLR_WHITE
-#define VIEW_GETBG_COLOR      CLR_BLUE
+#define RED_DESIGN 
+// #define BLUE_DESIGN
+// #define GREEN_DESIGN 
+// #define OLD_DESIGN 
 
-#define VIEW_BTNFR_COLOR      CLR_BLACK
-#define VIEW_BTNBG_COLOR      CLR_WHITE
+// 
+// --------------------------
+
+#ifdef BLUE_DESIGN
+
+	#define VIEW_FR_COLOR      CLR_WHITE
+	#define VIEW_BG_COLOR      CLR_BLUE
+	#define VIEW_LOOKUP_COLOR  CLR_YELLOW
+	
+	#define VIEW_GETFR_COLOR      CLR_BLACK
+	#define VIEW_GETBG_COLOR      CLR_HGRAY
+	
+	#define VIEW_BTNFR_COLOR      CLR_WHITE
+	#define VIEW_BTNBG_COLOR      CLR_HBLUE
+
+#endif
+
+#ifdef GREEN_DESIGN
+
+	#define VIEW_FR_COLOR      CLR_WHITE
+	#define VIEW_BG_COLOR      CLR_GREEN
+	#define VIEW_LOOKUP_COLOR  CLR_WHITE
+	
+	#define VIEW_GETFR_COLOR      CLR_WHITE
+	#define VIEW_GETBG_COLOR      CLR_BLACK
+	
+	#define VIEW_BTNFR_COLOR      CLR_BLACK
+	#define VIEW_BTNBG_COLOR      CLR_HGREEN
+
+#endif
+
+#ifdef RED_DESIGN
+
+	#define VIEW_FR_COLOR      CLR_WHITE
+	#define VIEW_BG_COLOR      CLR_RED
+	#define VIEW_LOOKUP_COLOR  CLR_WHITE
+	
+	#define VIEW_GETFR_COLOR      CLR_WHITE
+	#define VIEW_GETBG_COLOR      CLR_BLACK
+	
+	#define VIEW_BTNFR_COLOR      CLR_WHITE
+	#define VIEW_BTNBG_COLOR      CLR_HRED
+
+#endif
+
+#ifdef OLD_DESIGN
+
+	// CGA == Verde sobre preto 
+
+	#define VIEW_FR_COLOR      CLR_HGREEN
+	#define VIEW_BG_COLOR      CLR_BLACK
+	#define VIEW_LOOKUP_COLOR  CLR_HGREEN
+	
+	#define VIEW_GETFR_COLOR      CLR_HGREEN
+	#define VIEW_GETBG_COLOR      CLR_BLACK
+	
+	#define VIEW_BTNFR_COLOR      CLR_HGREEN
+	#define VIEW_BTNBG_COLOR      CLR_BLACK
+#endif
+
 
 // Evento disparado na atualização de campos 
 #define VIEW_ONDISPLAY    1
@@ -42,6 +102,7 @@ CLASS ZMVCVIEW FROM LONGNAMECLASS
 	DATA oControl        // Objeto de controle dos dados 
 	DATA cTitle          // Titulo da Janela de Interface
 	DATA aGets           // Array com objetos da interface e definicao 
+	DATA oFirstGet       // Primeiro GET Visivel e editavel da interface
 	DATA oDlg            // Janela de diálogo 
     
 #ifdef HAS_NAVBUTTONS
@@ -67,6 +128,7 @@ CLASS ZMVCVIEW FROM LONGNAMECLASS
 
     METHOD UpdRelField()  // Roda atualização de campo relacionado -- LookUp 
     METHOD RunViewEvent() // Roda eventos internos da View 
+    METHOD RunLookUp()    // Roda a lupa de LookUp da Agenda
 
     METHOD SEARCH()      // Pesquisa de registros
 	METHOD INSERT()      // Inserção de novo registro
@@ -99,6 +161,7 @@ METHOD NEW(cTitle) CLASS ZMVCVIEW
 ::cTitle  := cTitle
 ::cError  := ''
 ::aGets   := {}
+::oFirstGet := NIL
 ::aOldRecord := {}
 
 #ifdef HAS_NAVBUTTONS
@@ -143,6 +206,9 @@ Endif
 oFont := TFont():New('Courier new',,-14,.T.)
 oFont:Bold := .T. 
 
+// Seta que a partir daqui esta é a fonte default
+SetDefFont(oFont)
+
 // Cria a janela principal como uma DIALOG
 DEFINE DIALOG oDlg TITLE (::cTitle) ;
 	FROM 0,0 TO VIDEO_RES_HEIGHT,VIDEO_RES_WIDTH ;
@@ -174,14 +240,10 @@ Local nI, nFldCount
 Local oFldDef
 Local nRow , cPicture , nScrSize , nGetSize
 Local _Dummy_
-Local oNewSay , oNewGet
+Local oNewSay , oNewGet , oLupa
 Local nActRow
 Local oBtnAct, cPrompt
 Local cFTable, cFKey, cFName , bAction
-Local oFontSay
-
-oFontSay := TFont():New('Courier new',,-14,.T.)
-oFontSay:Bold := .T. 
 
 
 #ifdef HAS_NAVBUTTONS
@@ -305,13 +367,13 @@ For nI := 1 to nFldCount
 	IF oFldDef:IsVisible()
 
 		// Monta o label deste campo -- incialmente em branco 
-		@   nRow+3,05 SAY oNewSay PROMPT " " RIGHT SIZE 60,12 FONT oFontSay ; 
+		@   nRow+3,05 SAY oNewSay PROMPT " " RIGHT SIZE 60,12 ; 
 		   COLOR VIEW_FR_COLOR,VIEW_BG_COLOR OF oPanelCrud PIXEL
 		oNewSay:SetText( oFldDef:GetLabel() )
 		oNewSay := NIL 
 
     Endif
-	
+
     // Calcula o tamanho do campo baseado na picture 
 	cPicture := oFldDef:GetPicture()
 	nScrSize := oFldDef:GetSize()
@@ -329,15 +391,26 @@ For nI := 1 to nFldCount
 	@   nRow,70 GET oNewGet VAR _Dummy_ PICTURE (cPicture)   ;
 		COLOR VIEW_GETFR_COLOR,VIEW_GETBG_COLOR SIZE nGetSize ,12 OF oPanelCrud PIXEL
 
+	// Guarda o primeiro GET visivel para setar o foco na interface
+	// para as operações de inserção, busca e update
+	If ::oFirstGet = NIL 
+		IF oFldDef:IsVisible()
+			If oFldDef:IsEnabled()
+				::oFirstGet := oNewGet
+			Endif
+		Endif
+	Endif
+
 	// Guarda o objeto GET montado no array aGets
 	// [1] Nome do campo
 	// [2] Objeto tGet de interface
 	// [3] Objeto da definicao do campo
 	// [4] Valor do campo no GET 
 	// [5] Objeto TSAY para informação relacionada
+	// [6] Objeto tBmpBtn para LookUp 
 	// --- Inicializado com o valor default
 	
-	::aGets[nI] := { oFldDef:GetField() , oNewGet , oFldDef , oFldDef:DefaultValue() , NIL  }
+	::aGets[nI] := { oFldDef:GetField() , oNewGet , oFldDef , oFldDef:DefaultValue() , NIL , NIL  }
 	
 	// Troco a variavel do GET
 	// Monta codeblock para usar a quarta coluna 
@@ -360,8 +433,12 @@ For nI := 1 to nFldCount
 		// Campo relacionado a conteudo de tabela estrangeira 
 		// Monta um tSAY para mostrar o conteúdo relacionado
 		// e guarda no 5o elemento do ::aGets
+
+        @ (nRow+1)*2,(75+nGetSize)*2 BTNBMP oLupa RESOURCE 'zlib_lupa_32' SIZE 26,26 ;
+	       ACTION () OF oPanelCrud
+		::aGets[nI][6] := oLupa
 		
-		@   nRow+3,75 + nGetSize SAY oNewSay PROMPT " " SIZE 100,12 FONT oFontSay ;
+		@ nRow+3,95 + nGetSize SAY oNewSay PROMPT " " SIZE 100,12  ;
 		   COLOR VIEW_LOOKUP_COLOR,VIEW_BG_COLOR OF oPanelCrud PIXEL
 		oNewSay:SetText(" ")
 		::aGets[nI][5] := oNewSay
@@ -382,6 +459,10 @@ For nI := 1 to nFldCount
 		// Tambem dispara a atualização de campo na validação do proprio campo 
 		oNewGet:BVALID := &("{|| self:UpdRelField(.T.,'"+cFTable+"','"+cFKey+"','"+cFName+"',"+cValtoChar(nI)+") }")
 
+		// Coloca a ação no botão de lupa 
+		oLupa:bAction :=  &("{|| self:RunLookUp('"+cFTable+"','"+cFKey+"','"+cFName+"',"+cValtoChar(nI)+") }")
+		oLupa:SETENABLE(.F.)
+
 	Endif
 
 	// O Get nasce desabilitado
@@ -398,11 +479,11 @@ Next
 // Pula mais uma linha
 nRow += 15
 
-@ nRow,60  BUTTON ::oBtnOk PROMPT "Confirmar" SIZE 60,15 ;
+@ nRow,70  BUTTON ::oBtnOk PROMPT "&Confirmar" SIZE 60,15 ;
 	ACTION ( self:CONFIRM() ) OF oPanelCrud PIXEL
 ::oBtnOk:SetColor(VIEW_BTNFR_COLOR,VIEW_BTNBG_COLOR)
 
-@ nRow,180  BUTTON ::oBtnCanc PROMPT "Cancelar" SIZE 60,15 CANCEL ;
+@ nRow,170  BUTTON ::oBtnCanc PROMPT "&Voltar" SIZE 60,15 CANCEL ;
 	ACTION ( self:CANCEL() ) OF oPanelCrud PIXEL
 ::oBtnCanc:SetColor(VIEW_BTNFR_COLOR,VIEW_BTNBG_COLOR)
 
@@ -496,9 +577,11 @@ For nI := 1 to nFldCount
 	// Define se o campo é somente leitura ou nao 
 	oGet:LREADONLY := oFldDef:IsReadOnly()       
 	
-	// SE tem um label relacionado, limpa
 	If ::aGets[nI][5] != NIL 
-		::aGets[nI][5]:SetText(" ")
+		// SE tem um label relacionado, limpa
+		::aGets[nI][5]:SetText(" ")       
+		// E habilita a lupa de busca 
+		::aGets[nI][6]:SETENABLE(.T.)
 	Endif
 
 Next
@@ -511,6 +594,9 @@ Next
 // Mostra botões de confirmar e cancelar
 ::oBtnOk:Show()
 ::oBtnCanc:Show()
+
+// Joga o foco no primeiro GET 
+::oFirstGet:SetFocus()
 
 Return 
 
@@ -574,8 +660,6 @@ If ::cRunning == 'SEARCH'
 		nPos := ascan( aFound , {|x| x[1] == 'RECNO' })
 		If nPos > 0 
 			::nRecno  := aFound[nPos][2]
-			aDel(aFound,nPos)
-			aSize(aFound,len(aFound)-1)
 		Else
 			::nRecno  := 0 
 		Endif
@@ -732,6 +816,8 @@ If lCancel
 		// SE tem um label relacionado, limpa
 		If ::aGets[nFld][5] != NIL 
 			::aGets[nFld][5]:SetText(" ")
+			// E desliga a lupa de busca 
+			::aGets[nFld][6]:SETENABLE(.F.)
 		Endif
 		
 	Next
@@ -780,8 +866,10 @@ For nI := 1 to nFldCount
 	oGet:LREADONLY := oFldDef:IsReadOnly()
 	
 	// SE tem um label relacionado, limpa
+	// e habilita a lupa de busca 
 	If ::aGets[nI][5] != NIL 
 		::aGets[nI][5]:SetText(" ")
+		::aGets[nI][6]:SETENABLE(.T.)
 	Endif
 	
 Next
@@ -794,6 +882,9 @@ aEval (::aBtnNav , {|x| x:Hide() } )
 // Mostra botões de confirmar e cancelar
 ::oBtnOk:Show()
 ::oBtnCanc:Show()
+
+// Joga o foco no primeiro GET 
+::oFirstGet:SetFocus()
 
 Return .T.
 
@@ -854,6 +945,9 @@ Next
 ::oBtnOk:Show()
 ::oBtnCanc:Show()
 
+// Joga o foco no primeiro GET 
+::oFirstGet:SetFocus()
+
 Return
 
 METHOD DELETE()      CLASS ZMVCVIEW
@@ -887,8 +981,10 @@ Return
 
 METHOD RunAction(cAction) CLASS ZMVCVIEW
 Local lRun := .F. 
+Local lRestoreAct := .F.
 Local nPos
 Local cPrompt
+Local cOldAction
 
 nPos := ascan(::aActions , {|x| x[1] == cAction })
 cPrompt := ::aActions[nPos][2]
@@ -942,6 +1038,7 @@ Else
 	// Por hora qualquer operação adicional exige o estado "VIEW"
 	If ::cRunning == 'VIEW'
 		lRun := .T. 
+		lRestoreAct := .T. 
 	ElseIf Empty(::cRunning)
 		MsgStop("Operação não disponível. Primeiro efetue uma Pesquisa para selecionar um registro. ")
 	Else
@@ -950,11 +1047,15 @@ Else
 Endif
 
 If lRun
+	cOldAction := ::cRunning
 	::cRunning := cAction
 	::oDlg:cTitle := ::cTitle+" ("+cPrompt+")"
 	::oControl:RunAction(cAction)
 	If !empty(::oControl:GetErrorStr())
 		MsgStop(::oControl:GetErrorStr(),cAction)
+	Endif
+	IF lRestoreAct
+		::cRunning := cOldAction
 	Endif
 Endif
 
@@ -973,6 +1074,7 @@ Local aSearch := {}
 Local aFound := {}
 Local lOk := .F. 
 Local nPos
+Local cOldModel
 
 If Empty(xValue)
 	// Verifica se o campo é obrigatório
@@ -988,10 +1090,11 @@ Endif
 
 // Troca o modelo ativo para o modelo da relação 
 // E faz uma busca no modelo pelo campo informado 
+cOldModel := ::oControl:GetModel()
 ::oControl:SetModel(cFTable)
 aadd(aSearch,{cFKey,xValue})
 lOk := ::oControl:Search( aSearch , aFound )
-::oControl:SetModel("AGENDA")
+::oControl:SetModel(cOldModel)
 
 If lOk
 	nPos := ascan(aFound , {|x| x[1] == cFName } )
@@ -1000,7 +1103,7 @@ If lOk
 Endif
 
 If lValid
-	MsgStop("Valor informado não encontrado. Informe um valor válido.")
+	MsgStop("Valor informado não encontrado na tabela ["+cFTable+"]. Informe um valor válido.")
 	oSay:SetText(" ")
 	Return .F.
 Endif
@@ -1009,6 +1112,7 @@ Return .T.
 
 // ----------------------------------------------------------
 // Disparo de ações internas da View 
+// A ação recebe o Objeto da View como parametro 
 
 METHOD RunViewEvent(nEvent)  CLASS ZMVCVIEW
 Local nI
@@ -1019,17 +1123,95 @@ For nI := 1 to len(::aViewEvents)
 Next
 Return
 
-/*
 
-    == Desligar calendario do GET 
+// ----------------------------------------------------------
+// Executa uma busca em tabela relacionada por LookUp  
+// Caso o campo base já tenha valor, abre o LookUp 
+// já posicionado no registro correto. Para selecionar
+// um novo valor, clique duas vezes 
 
-LHASBUTTON
+METHOD RunLookUp( cFTable , cFKey , cFName , nPosGet ) CLASS ZMVCVIEW
+Local oGet     := ::aGets[nPosGet][2]
+Local xValue   := ::aGets[nPosGet][4]
+Local oSay     := ::aGets[nPosGet][5]
+Local aCols    := {}
+Local aData    := {}
+Local cOldModel
+Local oLst
+Local cSelItem
+Local aLstData := {}
+Local nI
+Local oDlg
+Local nPos , nRow    
+Local nPosKey
+Local cTitle   := "Tabela ["+cFTable+"]"
+                                 
 
-	If oFldDef:GetType() == 'D'
-		// desliga calendario 
-	    oNewGet:LCALENDARIO := .F. 
+// TODO 
+// Aqui caberia um cache bem bacana 
+// desde que a definição assim autorize
+
+// Troca o modelo ativo para o modelo da relação
+// E faz uma busca no modelo pelo campo informado
+cOldModel := ::oControl:GetModel()
+::oControl:SetModel(cFTable)
+lOk := ::oControl:GetData( aCols, aData )
+::oControl:SetModel(cOldModel)
+
+// Sorteia os dados de acordo com a coluna a procurar
+nPos := ascan(aCols,{|x| x == cFName })
+aSort(aData,,,{|x1,x2| x1[nPos] < x2[nPos] })
+
+// Pega a coluna da chave 
+nPosKey := ascan(aCols,{|x| x == cFKey })
+
+// Cria array de interface com os dados ordenados
+For nI := 1 to len(aData)
+	aadd(aLstData,aData[nI][nPos])
+Next
+
+DEFINE DIALOG oDlg TITLE (cTitle) ;
+	FROM 0,0 TO VIDEO_RES_HEIGHT/2,VIDEO_RES_WIDTH/2 ;
+	COLOR VIEW_FR_COLOR,VIEW_BG_COLOR PIXEL
+
+@ 0,0 LISTBOX oLst VAR cSelItem ITEMS aLstData SIZE 600,300 ;
+    ON CHANGE (nRow := oLst:nAt) ; 
+	COLOR VIEW_GETFR_COLOR,VIEW_GETBG_COLOR  OF oDlg  PIXEL
+
+oLst:ALIGN := CONTROL_ALIGN_ALLCLIENT   
+oLst:BLDBLCLICK := {|| nRow := oLst:nAt ,  oDlg:End() }
+
+If !empty(xValue)
+	nPos := ascan(aCols,{|x| x == cFKey })
+	nRow := ascan(aData , {|x| x[nPos] == xValue })
+	If nRow > 0
+		oLst:Select(nRow)
+	Else
+		oLst:GoTOP()
 	Endif
-		
+Else
+	oLst:GoTOP()
+Endif
+          
+nRow := 0
 
+ACTIVATE DIALOG oDlg CENTER
 
-*/
+If nRow > 0 
+
+	// Pega a coluna da chave 
+	nPosKey := ascan(aCols,{|x| x == cFKey })
+
+	// Atualiza o GET da interface com o valor selecionado 	
+	Eval(oGet:bSetGet,aData[nRow][nPosKey])	
+	
+	// Atualiza o label com o valor correspondente
+	oSay:SetText(cSelItem)
+	  
+	// E manda o FOCO pro GET 
+	oGet:SetFocus()
+
+Endif
+
+Return .T.
+
