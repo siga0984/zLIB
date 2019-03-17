@@ -4,8 +4,8 @@
 #define CALCSIZEGET( X )  (( X * 4 ) + 8)      
 
 // Resolucao padrao de video usada 
-#define VIDEO_RES_WIDTH    1024
-#define VIDEO_RES_HEIGHT    768
+#define VIDEO_RES_WIDTH    1280
+#define VIDEO_RES_HEIGHT   1024
 
 // --------------------------
 // Escolha do padrao de cores 
@@ -99,11 +99,13 @@ This view layer shows the data on UI of the application.
 
 CLASS ZMVCVIEW FROM LONGNAMECLASS
 
+    DATA oEnv            // Environment em uso 
 	DATA oControl        // Objeto de controle dos dados 
 	DATA cTitle          // Titulo da Janela de Interface
 	DATA aGets           // Array com objetos da interface e definicao 
 	DATA oFirstGet       // Primeiro GET Visivel e editavel da interface
 	DATA oDlg            // Janela de diálogo 
+	DATA aCoords   
     
 #ifdef HAS_NAVBUTTONS
 	DATA aBtnNav         // Botoes de Navegação 
@@ -121,6 +123,10 @@ CLASS ZMVCVIEW FROM LONGNAMECLASS
 	DATA aOldRecord      // Registro com valores de campos no inicio de uma operação 
 
     METHOD NEW()         // Construtor
+    METHOD SetCoords()
+    METHOD SetZLibEnv()  // Guarda o ambiente do processo em uso 
+    METHOD GetZLIBEnv()  // Retorna o objeto do Ambiente da execução atual 
+
     METHOD SetControl()  // Abarra objeto de controle de dados
 	METHOD RUN()         // Inicia a interface
 	METHOD RUNINTF()     // Monta componentes de tela
@@ -178,6 +184,26 @@ METHOD NEW(cTitle) CLASS ZMVCVIEW
 
 Return self
 
+
+METHOD SetCoords(aCoords) CLASS ZMVCVIEW
+::aCoords := aCoords
+Return
+
+
+// ----------------------------------------------------------
+// Seta o ambiente em uso no processo atual 
+METHOD SetZLibEnv(oEnv) CLASS ZMVCVIEW
+::oLogger:Write("SetZLibEnv")
+::oEnv := oEnv
+Return
+
+// ----------------------------------------------------------
+// Retorna o objeto do ambiente do processo atual 
+
+METHOD GetZLIBEnv() CLASS ZMVCVIEW
+::oLogger:Write("GetZLIBEnv")
+Return ::oEnv
+
 // ----------------------------------------------------------
 // Recebe o objeto de controle  
 
@@ -185,6 +211,7 @@ METHOD SetControl(oObj)  CLASS ZMVCVIEW
 ::oLogger:Write("SetControl","Set Control ["+GetClassName(oObj)+"]")
 ::oControl := oObj
 Return
+
 
 // ----------------------------------------------------------
 // Monta e executa a interface (view)
@@ -210,19 +237,42 @@ oFont:Bold := .T.
 SetDefFont(oFont)
 
 // Cria a janela principal como uma DIALOG
-DEFINE DIALOG oDlg TITLE (::cTitle) ;
-	FROM 0,0 TO VIDEO_RES_HEIGHT,VIDEO_RES_WIDTH ;
-	FONT oFont ;
-	COLOR VIEW_FR_COLOR,VIEW_BG_COLOR PIXEL
+// ( sem borda , sem Menu ) 
+
+IF ::aCoords != NIL 
+
+	DEFINE DIALOG oDlg TITLE (::cTitle) ;
+		FROM::aCoords[1],::aCoords[2] TO ::aCoords[3],::aCoords[4] ;
+		STYLE nOr(WS_VISIBLE,WS_POPUP);
+		FONT oFont ;
+		COLOR VIEW_FR_COLOR,VIEW_BG_COLOR PIXEL
+
+Else
+
+	DEFINE DIALOG oDlg TITLE (::cTitle) ;
+		FROM 0,0 TO VIDEO_RES_HEIGHT,VIDEO_RES_WIDTH ;
+		FONT oFont ;
+		COLOR VIEW_FR_COLOR,VIEW_BG_COLOR PIXEL
+
+Endif
+
 
 // Guarda o diálogo na classe da View
 ::oDlg := oDlg
 
 // Interface montada na inicialização da janela
-oDlg:bInit := {|| self:RUNINTF(oDlg) }
+oDlg:bInit := {|| ::RUNINTF(oDlg) }
 
-ACTIVATE DIALOG oDlg CENTER ;
-	VALID ( MsgYesNo("Deseja fechar e sair da aplicação ?") )
+IF ::aCoords != NIL 
+
+	ACTIVATE DIALOG oDlg 
+
+Else
+
+	ACTIVATE DIALOG oDlg CENTER ; 
+		VALID ( MsgYesNo("Deseja encerrar a operação ["+::cTitle+"] ?") )
+
+Endif
 
 ::oLogger:Write("Run","End Interface")
 
@@ -286,7 +336,7 @@ For nI := 1 to len(::aActions)
 Next
 
 // Acrescenta a ação de saída 
-AADD(::aActions , { "EXIT" , "Sair" , NIL } ) 
+AADD(::aActions , { "EXIT" , "Retornar" , NIL } ) 
 
 // Cria os botões de ação na interface
 nActRow := 05
@@ -1152,7 +1202,8 @@ Local cTitle   := "Tabela ["+cFTable+"]"
 // desde que a definição assim autorize
 
 // Troca o modelo ativo para o modelo da relação
-// E faz uma busca no modelo pelo campo informado
+// E carrega (por hora) TODOS os dados da tabela 
+
 cOldModel := ::oControl:GetModel()
 ::oControl:SetModel(cFTable)
 lOk := ::oControl:GetData( aCols, aData )
@@ -1182,8 +1233,8 @@ oLst:ALIGN := CONTROL_ALIGN_ALLCLIENT
 oLst:BLDBLCLICK := {|| nRow := oLst:nAt ,  oDlg:End() }
 
 If !empty(xValue)
-	nPos := ascan(aCols,{|x| x == cFKey })
-	nRow := ascan(aData , {|x| x[nPos] == xValue })
+	nPos := ascan( aCols , {|x| x == cFKey } )
+	nRow := ascan( aData , {|x| x[nPos] == xValue } )
 	If nRow > 0
 		oLst:Select(nRow)
 	Else

@@ -39,7 +39,7 @@ METHOD NEW(cComponent) CLASS ZLOGGER
 ::cComponent := cComponent
 ::lDateTime := .T. 
 ::lThread   := .T. 
-::lConsole  := .T. 
+::lConsole  := .F. 
 ::oLogWriter := NIL
 Return self
 
@@ -66,6 +66,12 @@ Return
 METHOD WRITE(cRun,cMsg) CLASS ZLOGGER
 Local cEcho := ''
 Local nMS
+
+If !::lConsole .AND. ::oLogWriter = NIL
+	// Sem saida de console, sem escrita 
+	// em nenhum objeto, nao faz nada 
+	Return
+Endif
 
 If ::lDateTime 
 	// Acrescenta data e hora, com milissegundos

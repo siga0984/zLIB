@@ -17,19 +17,18 @@ CLASS ZLIBENV
   METHOD NEW()      // Construtor
   METHOD DONE()     // Finalizador / Destrutor
 
-  METHOD SETENV()   // Seta o minimo do ambiente ( formato de data e acentuação ) 
+  METHOD SETENV()      // Seta o minimo do ambiente ( formato de data e acentuação ) 
   METHOD SetObject()   // Guarda um objeto do ambiente
   METHOD GetObject()   // Recupera um objeto do ambiente 
 
 ENDCLASS
-
 
 // ----------------------------------------------------------
 //
 
 METHOD NEW() CLASS ZLIBENV
 ::aObjList := {}
-::lVerbose := .T. 
+::lVerbose := .F. 
 Return
 
 // ----------------------------------------------------------

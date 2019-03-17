@@ -46,18 +46,19 @@ CLASS ZMVCMODEL FROM LONGNAMECLASS
   METHOD INIT()                 // Inicialização do modelo 
   METHOD DONE()                 // Finalizacao do Modelo 
 	
+  METHOD GetZLIBEnv()                 // Retorna o objeto do Ambiente da execução atual 
   METHOD GetErrorStr()          // Recupera ultima mensagem de erro 
   METHOD SetError()             // Seta mensagem de erro 
   METHOD ClearError()           // Limpa ultima ocorrencia de erro 
   METHOD GetObjectDef()         // Retorna o objeto com a definição do componente
   METHOD GetTableObj()          // Recupera a tabela relacionada ao compoentne
   METHOD RunEvents()            // Roda um ou mais eventos relacionados do compoennte     
-  METHOD RunAction() 
+  METHOD RunAction()            // Executa uma determinada ação do componente
 
   METHOD VldConstraints()       // Roda Validação de Constraints dos campos 
 
-  METHOD FieldGet()            // Recupera o valor de um campo do registro atual 
-  METHOD FieldPut()            // Seta valor de um campo no registro atual 
+  METHOD FieldGet()             // Recupera o valor de um campo do registro atual 
+  METHOD FieldPut()             // Seta valor de um campo no registro atual 
  
   METHOD NewRecord()            // Cria registro em branco para inserção 
   METHOD Write()                // Insere um novo registro na base de dados 
@@ -114,6 +115,7 @@ Local lOk
 
 ::ClearError()
 
+// O Init do modelo recebe o environment 
 ::oEnv   := oEnv
 
 If ::lInited
@@ -166,6 +168,13 @@ Endif
 ::lInited := .T. 
 
 Return .T. 
+
+// ----------------------------------------------------------
+// Retorna o objeto do ambiente do processo atual 
+
+METHOD GetZLIBEnv() CLASS ZMVCMODEL
+::oLogger:Write("GetZLIBEnv")
+Return ::oEnv
 
 // ----------------------------------------------------------
 // Finaliza o contexto de execução do modelo 
@@ -258,11 +267,7 @@ Return .F.
 // Insere um novo registro na base 
 
 METHOD Write(aRecord) CLASS ZMVCMODEL
-Local aFieldsDef, nFldCount
-Local nFld , oFldDef
-Local nTot , nPos , xValue 
-Local lOk
-Local cMsgVld := ''
+Local nFld  , nTot  , lOk
 
 ::ClearError()
 ::oLogger:Write("Write")
@@ -443,7 +448,7 @@ Local lOk
 Local nRecno := 0
 Local nPos
 Local aUpdate := {}
-Local nI
+
 
 ::ClearError()
 ::oLogger:Write("Update")

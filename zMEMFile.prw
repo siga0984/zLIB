@@ -37,7 +37,8 @@ CLASS ZMEMFILE FROM ZISAMFILE
   METHOD OPEN()				// Abertura da tabela 
   METHOD CLOSE()			// Fecha a tabela 
   METHOD EXISTS()           // Verifica se a tabela existe 
-  METHOD CREATE()           // Cria a tabela no disco 
+  METHOD CREATE()           // Cria a tabela na memória
+  METHOD DROP()             // Apaga os dados e estrutura da tabela da memoria
 
   METHOD GetFileType()      // Tipo do arquivo ("MEMORY")
 
@@ -151,7 +152,6 @@ Return .T.
 // A tabela pode ser aberta novamente pela mesma instancia 
 
 METHOD CLOSE() CLASS ZMEMFILE 
-Local nI
 Local nPos
 
 // Localiza a estrutura da tabela 
@@ -163,6 +163,7 @@ If nPos > 0
 	aSize(_aMemFiles,len(_aMemFiles)-1)
 Endif
 
+// TODO - Revisar este comportamento
 // Ao fechar, evapora com os dados da tabela 
 aSize( ::aFileData , 0 ) 
 

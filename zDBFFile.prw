@@ -86,6 +86,7 @@ CLASS ZDBFFILE FROM ZISAMFILE
   METHOD CLOSE()			// Fecha a tabela 
   METHOD EXISTS()           // Verifica se a tabela existe 
   METHOD CREATE()           // Cria a tabela no disco 
+  METHOD DROP()             // Apaga a tabela do disco 
 
   METHOD GetFileType()      // Tipo do arquivo ("DBF")
 
@@ -421,6 +422,27 @@ Endif
 
 Return .T. 
 
+
+// ----------------------------------------------------------\
+// Apaga a tabela do disco 
+
+METHOD DROP() CLASS ZDBFFILE 
+nErr := 0
+
+If ::lOpened
+	::_SetError(-8,"DROP ERROR - File Already Opened")
+	Return .F.
+Endif
+
+If !empty(cDataFile)
+	Ferase(cDataFile)
+Endif
+
+If !empty(cMemoFile)
+	Ferase(cMemoFile)
+Endif
+
+Return .T. 
 
 // ----------------------------------------------------------
 // Permite ligar filtro de navegação de registros deletados

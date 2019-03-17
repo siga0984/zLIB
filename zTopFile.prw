@@ -40,7 +40,8 @@ CLASS ZTOPFILE FROM ZISAMFILE
   METHOD OPEN()				// Abertura da tabela 
   METHOD CLOSE()			// Fecha a tabela 
   METHOD EXISTS()           // Verifica se a tabela existe 
-  METHOD CREATE()           // Cria a tabela no disco 
+  METHOD CREATE()           // Cria a tabela no SGDB
+  METHOD DROP()             // Apaga a tabela do SGDB
 
   METHOD GetFileType()      // Tipo do arquivo ("MEMORY")
   METHOD SetDBConn()        // Conexao com o Banco para uso desta tabela 
@@ -304,6 +305,35 @@ Next
 DBCreate(::cFileName , aStru , "TOPCONN")
 
 Return .T. 
+
+// ----------------------------------------------------------\
+
+METHOD DROP() CLASS ZTOPFILE
+Local lOk := .T. 
+
+::oLogger:Write("DROP")
+
+If ::oDBConn = NIL 
+	UserException("ZTOPFILE:Drop() -- DBCONN NOT SET")
+Endif
+
+If !::oDBConn:IsConnected()
+	UserException("ZTOPFILE:Drop() -- DBCONN NOT CONNECTED")
+Endif
+
+If ::lOpened
+	::_SetError("DROP ERROR - File is Opened")
+	Return .F.
+Endif
+
+// Dropa a tabela
+lOk := TCDelFile(::cFileName)
+
+If !lOk
+	::_SetError(TCSqlError())
+Endif
+
+Return lOk
 
 // ----------------------------------------------------------\
 // Seta o objeto da conexao na tabela 

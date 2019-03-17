@@ -18,6 +18,7 @@ Controller Layer:
 
 CLASS ZMVCCONTROL FROM LONGNAMECLASS
 
+   DATA oEnv                     // Environment em uso 
    DATA aModels
    DATA oModel
    DATA oView
@@ -28,6 +29,8 @@ CLASS ZMVCCONTROL FROM LONGNAMECLASS
    METHOD AddModel()
    METHOD SetModel()
    METHOD GetModel()
+   METHOD SetZLibEnv()
+   METHOD GetZLibEnv()
    METHOD GetObjectDef()
    METHOD GetErrorStr()
    METHOD SetError()
@@ -103,6 +106,20 @@ Local cTabModel := ::oModel:cTable
 ::oLogger:Write("GetModel","Current Model is ["+cTabModel+"]" )
 Return cTabModel
    
+// ----------------------------------------------------------
+// Seta o ambiente em uso no processo atual 
+METHOD SetZLibEnv(oEnv) CLASS ZMVCCONTROL
+::oLogger:Write("SetZLibEnv")
+::oEnv := oEnv
+Return
+
+// ----------------------------------------------------------
+// Retorna o objeto do ambiente do processo atual 
+
+METHOD GetZLIBEnv() CLASS ZMVCCONTROL
+::oLogger:Write("GetZLIBEnv")
+Return ::oEnv
+
 // ----------------------------------------------------------
 // Pede para o modelo a definição do componente
 
@@ -225,6 +242,4 @@ If !lOk
 	::cError := ::oModel:GetErrorStr()
 Endif
 Return lOk
-
-
 
