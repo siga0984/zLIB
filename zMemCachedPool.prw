@@ -6,7 +6,7 @@ Autor       Julio Wittwer
 Data        01/2019
 Descrição   Encapsula objeto client do MemCache, usando contador de referencias. 
 
-Os programas que consomem o cache devem pbjert a instância usando :
+Os programas que consomem o cache devem obter a instância usando :
 
    ZMEMCACHEDPOOL():GetCache( @oMemCache , @cError )
 

@@ -50,6 +50,7 @@ CLASS ZMEMCACHED FROM LONGNAMECLASS
    METHOD GetStats()    // Recupera estatisticas da intancia do memcached
    METHOD Disconnect()  // Desconecta do MemCAched
    METHOD IsConnected() // Retorna .T. caso o cache esteja conectado 
+   METHOD Done()        // Equivalente ao DISCONNECT 
 
    METHOD GetErrorStr() // Recupera string com informações de erro 
 
@@ -78,10 +79,9 @@ Method NEW( cIp , nPorta ) CLASS ZMEMCACHED
 ::cMemCacheIP    := cIp
 ::nMemCachePort  := nPorta
 ::nRvcTimeOut := 1000
-::oTCPConn       := tSocketClient():New()
 ::cError      := ''
 ::cResponse   := ''
-::lVerbose    := .T.
+::lVerbose    := .F.
 Return self
 
 // ----------------------------------------------------------
@@ -97,9 +97,18 @@ IF ::lVerbose
 	Conout("zMemCached:Connect() to "+::cMemCacheIP+" Port "+cValToChar(::nMemCachePort))
 Endif
 
-If ::oTCPConn:Isconnected()
-	::cError := "Memcached client already connected."
-	Return .F.
+If ::oTCPConn = NIL
+
+	// Cria o objeto Socket Client 	
+	::oTCPConn       := tSocketClient():New()
+	
+Else
+	
+	If ::oTCPConn:Isconnected()
+		::cError := "Memcached client already connected."
+		Return .F.
+	Endif
+	
 Endif
 
 // Estabelece a conexao com o memcache DB
@@ -145,7 +154,9 @@ if( ::oTCPConn:IsConnected() )
 	
 Endif
 
+// Desconecta e limpa o objeto 
 ::oTCPConn:CloseConnection()
+FreeObj(::oTCPConn)
 ::oTCPConn := NIL
 
 Return .T.
@@ -159,6 +170,13 @@ If ::oTCPConn != NIL
 Endif
 Return .F. 
    
+// ----------------------------------------------------------
+// Equivalente ao DISCONNECT 
+
+METHOD Done()  CLASS ZMEMCACHED
+::Disconnect()
+Return
+
 // ----------------------------------------------------------
 // Recupera a versao da instancia conectada por referencia
 

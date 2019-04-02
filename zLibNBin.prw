@@ -118,7 +118,6 @@ Return nByte2
 // ( High Byte First ) 
 
 STATIC Function NtoBin2(nNum)
-Local cBin2 := '' , nTmp
 Local nL := ( nNum % 256 ) 
 Local nH := ( nNum-nL ) / 256 
 Return chr(nH) + chr(nL)

@@ -4,8 +4,8 @@
 #define CALCSIZEGET( X )  (( X * 4 ) + 8)      
 
 // Resolucao padrao de video usada 
-#define VIDEO_RES_WIDTH    1280
-#define VIDEO_RES_HEIGHT   1024
+#define VIDEO_RES_WIDTH    800
+#define VIDEO_RES_HEIGHT   600
 
 // --------------------------
 // Escolha do padrao de cores 
@@ -111,7 +111,6 @@ CLASS ZMVCVIEW FROM LONGNAMECLASS
 	DATA aBtnNav         // Botoes de Navegação 
 #endif
 
-	DATA aBtnAct         // Botões de ação padrão ( incluir, sair, etc ) 
 	DATA aActions        // Acoes adicionais do componente
     DATA aViewEvents     // Eventos internos da View 
 	DATA cRunning        // Ação em execução 
@@ -288,7 +287,7 @@ Local oPanelBase
 Local oPanelCrud
 Local nI, nFldCount
 Local oFldDef
-Local nRow , cPicture , nScrSize , nGetSize
+Local nRow , cPicture , nScrSize , nGetSize , cFldType
 Local _Dummy_
 Local oNewSay , oNewGet , oLupa
 Local nActRow
@@ -347,12 +346,11 @@ For nI := 1 to len(::aActions)
     cPrompt := ::aActions[nI][2]
 
 	@ nActRow,05  BUTTON oBtnAct PROMPT cPrompt  ;
-	SIZE 60,15 OF oPanelMenu PIXEL
+	SIZE 60,13 OF oPanelMenu PIXEL
 	
 	oBtnAct:BACTION := &("{|| self:RunAction('"+cAction+"') }")
 	oBtnAct:SetColor(VIEW_BTNFR_COLOR,VIEW_BTNBG_COLOR)
 	
-
 	oBtnAct := NIL 
 	nActRow += 15 
 	
@@ -427,7 +425,8 @@ For nI := 1 to nFldCount
     // Calcula o tamanho do campo baseado na picture 
 	cPicture := oFldDef:GetPicture()
 	nScrSize := oFldDef:GetSize()
-	If oFldDef:GetType() == 'D'
+	cFldType := oFldDef:GetType()
+	If cFldType == 'D'
 		// Campo data com mais 2 caraceres 
 		nScrSize += 2	
 	Endif
@@ -436,11 +435,32 @@ For nI := 1 to nFldCount
 	Else
 		nGetSize := CALCSIZEGET( nScrSize ) 
 	Endif	
-	
-	// Monta o GET para este campo , inicialmente com uma variavel "dummy"
-	@   nRow,70 GET oNewGet VAR _Dummy_ PICTURE (cPicture)   ;
-		COLOR VIEW_GETFR_COLOR,VIEW_GETBG_COLOR SIZE nGetSize ,12 OF oPanelCrud PIXEL
 
+	If cFldType == 'M'
+
+		// Campo memo, editávem em 80 colunas e 5 linhas 
+
+		nGetSize := CALCSIZEGET( 80 ) 
+
+		// Monta o GET para este campo , inicialmente com uma variavel "dummy"
+		@   nRow,70 GET oNewGet VAR _Dummy_ MULTILINE ;
+			COLOR VIEW_GETFR_COLOR,VIEW_GETBG_COLOR SIZE nGetSize ,60 OF oPanelCrud PIXEL
+
+		// A cor nao está sendo respeitada 
+		/*
+		oNewGet:SetColor(VIEW_GETFR_COLOR,VIEW_GETBG_COLOR)
+		oNewGet:SetCSS("color: white; background-color: black;")
+		*/
+			
+	Else
+	
+		// Monta o GET para este campo , inicialmente com uma variavel "dummy"
+		@   nRow,70 GET oNewGet VAR _Dummy_ PICTURE (cPicture)   ;
+			COLOR VIEW_GETFR_COLOR,VIEW_GETBG_COLOR SIZE nGetSize ,12 OF oPanelCrud PIXEL
+
+
+	Endif
+	
 	// Guarda o primeiro GET visivel para setar o foco na interface
 	// para as operações de inserção, busca e update
 	If ::oFirstGet = NIL 
@@ -471,24 +491,31 @@ For nI := 1 to nFldCount
 
 	// Nenhum GET tem botao auxiliar 
 	// Nesta tela, nem calendário, nem calculadora 
-    oNewGet:LHASBUTTON := .F. 
-    oNewGet:LNOBUTTON  := .T. 
-    oNewGet:LCALENDARIO := .F. 
-	
+	If cFldType != 'M'
+	    oNewGet:LHASBUTTON := .F. 
+	    oNewGet:LNOBUTTON  := .T. 
+	    oNewGet:LCALENDARIO := .F. 
+	Endif
+		
     // Verifica se este GET está visível 
 	oNewGet:LVISIBLE := oFldDef:IsVisible()
 	
-	If !empty(oFldDef:GetLookTable())
+	If oFldDef:IsVisible() .AND. !empty(oFldDef:GetLookTable())
 
 		// Campo relacionado a conteudo de tabela estrangeira 
 		// Monta um tSAY para mostrar o conteúdo relacionado
 		// e guarda no 5o elemento do ::aGets
+		// Somente monta a interface caso este campo esteja visivel 
 
         @ (nRow+1)*2,(75+nGetSize)*2 BTNBMP oLupa RESOURCE 'zlib_lupa_32' SIZE 26,26 ;
 	       ACTION () OF oPanelCrud
 		::aGets[nI][6] := oLupa
+
+		// TODO
+		// Pegar otamanho do campo para dimensionar 
+		// corretamente o tSAy do LookUp
 		
-		@ nRow+3,95 + nGetSize SAY oNewSay PROMPT " " SIZE 100,12  ;
+		@ nRow+3,95 + nGetSize SAY oNewSay PROMPT " " SIZE 200,12  ;
 		   COLOR VIEW_LOOKUP_COLOR,VIEW_BG_COLOR OF oPanelCrud PIXEL
 		oNewSay:SetText(" ")
 		::aGets[nI][5] := oNewSay
@@ -521,7 +548,11 @@ For nI := 1 to nFldCount
 	// Cada novo campo pula 15 PIXELS 
 	// ( caso o campo esteja visivel ) 
 	IF oFldDef:IsVisible()
-		nRow += 15
+		If cFldType == 'M'			
+			nRow += 75
+		Else
+			nRow += 15
+		Endif
 	Endif
 	
 Next
@@ -568,7 +599,6 @@ METHOD DONE() CLASS ZMVCVIEW
 #ifdef HAS_NAVBUTTONS
 ::aBtnNav    := {}
 #endif
-::aBtnAct    := {}
 
 Return
 
@@ -704,7 +734,13 @@ If ::cRunning == 'SEARCH'
 				::oLogger:Write("Confirm","Warning: Interface Field ["+cFldName+"] not found.")
 				::aGets[nFld][2]:SetEnable(.F.)
 			Endif
-			::aGets[nFld][2]:LREADONLY := .T.
+			::aGets[nFld][2]:LREADONLY := .T.       
+			
+			If ::aGets[nFld][5] != NIL 
+				// Desabilita a lupa de busca 
+				::aGets[nFld][6]:SETENABLE(.F.)
+			Endif
+
 		Next
 		               
 		nPos := ascan( aFound , {|x| x[1] == 'RECNO' })
@@ -1130,7 +1166,10 @@ If Empty(xValue)
 	// Verifica se o campo é obrigatório
 	// e a validação está habilitada 
 	oSay:SetText(" ")
-	If oFldDef:IsRequired() .and. lValid
+	If oFldDef:IsRequired() .and. lValid .and. ::cRunning <> "SEARCH"
+		// Somente executa a validação de interface se o campo for obrigatório
+		// E se esta ação é uma ação de validação 
+		// E eu não estiver fazendo uma CONSULTA 
 		MsgStop("Este campo é de preenchimento obrigatório. Preencha o conteúdo do campo para continuar.")
 		Return .F.
 	Else

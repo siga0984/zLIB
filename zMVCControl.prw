@@ -87,6 +87,7 @@ Return
 
 METHOD SetModel(_cTable) CLASS ZMVCCONTROL
 Local nPos 
+::oLogger:Write("SetModel","Table="+_cTable )
 nPos := ascan( ::aModels , {|x| x:cTable == _cTable } )
 If nPos > 0 
 	If ::oModel != ::aModels[nPos]

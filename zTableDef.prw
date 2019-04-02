@@ -18,16 +18,20 @@ CLASS ZTABLEDEF FROM LONGNAMECLASS
    DATA cUnqExpr
    DATA aEvents
    DATA aActions
+   DATA lUseCache
 
    METHOD New()                        // Construtor 
    METHOD SetStruct()                  // Seta uma estrutura ( Array formato DBF ) 
    METHOD GetStruct()                  // Recupera a estrutura ( Array Formato DBF ) 
+   METHOD GetIndex()                   // Recupera a definicao de indices 
    METHOD AddFieldDef()                // Acrescenta um campo e sua definição estendida
    METHOD GetFieldDef()                // Retorna o onjeto da definicao de um campo pelo nome 
    METHOD GetFields()                  // Retorna o array com a deefinição de todos os campos 
    METHOD AddField()                   // Acrescenta um campo na estrutura 
    METHOD AddIndex()                   // Acrescenta uma expressao de indice 
    METHOD SetUnique()                  // Seta expressao de chave unica 
+   METHOD SetUseCache()                // Seta uso de cache para os dados 
+   METHOD GetUseCache()                // Recupera definicao de uso de cache
    METHOD AddEvent()                   // Acrescenta um evento na definição 
    METHOD AddAction()                  // Acrescenta uma ação do componente
    METHOD RunEvents()                  // Executa um ou mais eventos 
@@ -50,6 +54,7 @@ METHOD NEW(cId) CLASS ZTABLEDEF
 ::cUnqExpr := ''
 ::aEvents := {}
 ::aActions := {}
+::lUseCache := .F. 
 Return self
 
 // ------------------------------------------------------
@@ -62,6 +67,11 @@ Return
 
 METHOD GetStruct() CLASS ZTABLEDEF
 Return aClone(::aStruct)
+
+// ------------------------------------------------------
+
+METHOD GetIndex() CLASS ZTABLEDEF
+Return aClone(::aIndex)
 
 // ------------------------------------------------------
 // Cria e acrescenta objeto da definição estendida de campo 
@@ -153,6 +163,19 @@ Return
 METHOD SetUnique(cExpr) CLASS ZTABLEDEF
 ::cUnqExpr := cExpr
 Return
+
+// ------------------------------------------------------
+// Seta uso de cache para os dados 
+
+METHOD SetUseCache(lSet) CLASS ZTABLEDEF
+::lUseCache := lSet
+Return
+
+// ------------------------------------------------------
+// Recupera definicao de uso de cache
+
+METHOD GetUseCache() CLASS ZTABLEDEF
+Return ::lUseCache
 
 // ------------------------------------------------------
 // Acrescenta um evento na definição 

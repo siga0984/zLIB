@@ -56,6 +56,7 @@ CLASS ZTOPFILE FROM ZISAMFILE
   METHOD Insert()           // Insere um registro em branco no final da tabela
   METHOD Update()           // Atualiza o registro atual na tabela 
   METHOD UpdStruct()        // Verifica estrutura fisica versus definição 
+  METHOD UpdIndex()         // Verifica se os indices precisam ser atualizados
   METHOD Search()           // Busca um registro que atenda os criterios informados
 
   METHOD Header() 			// Retorna tamanho em Bytes do Header da Tabela
@@ -682,7 +683,6 @@ Endif
 
 Return
 
-
 // ----------------------------------------------------------
 // Verifica estrutura fisica versus definição 
 
@@ -734,16 +734,61 @@ Else
 
 		// Se nao tem campos novos, mas as estruturas estao diferentes
 		// pode ter havido alteração de parametros. Verificar o que fazer...
-
-		::_SetError("Definição diferente da estrutura da tabela.")
-		Return .F. 
+		lOk := TCAlter(::cFileName , aDbStru , aDefStru )
 	
+		IF !lOk
+			::_SetError(TCSqlError())
+			Return .F. 
+		Endif
+	
+		MsgInfo("Estrutura da Tabela ["+::cFileName+"] ajustada automaticamente.")
+		
 	Endif
 
 Endif
 
 Return .T. 
+               
 
+// ----------------------------------------------------------
+// Verifica indices no BAnco Versus definição 
+// Por hora apenas cria os índices caso nao existam 
+// TODO -- Verificar chaves e recriar em caso de diferença
+
+METHOD UpdIndex(oFileDef) CLASS ZTOPFILE
+Local aIndex 
+Local cIndex
+Local nI
+
+::oLogger:Write("UpdIndex")
+
+If !::oDBConn:IsConnected()
+	UserException("ZTOPFILE:UpdIndex() -- DBCONN NOT CONNECTED")
+Endif
+
+// Pega os indices da definição 
+aIndex := oFileDef:GetIndex()
+
+For nI := 1 to len(aIndex)
+
+	cIndex := ::cFileName+cvaltochar(nI)
+	cExp := aIndex[nI]
+
+    IF !TCCanOpen(::cFileName,cIndex)
+
+    	// Indice nao existe 
+		IF ::Open(.F.,.F.)
+			INDEX ON &(cExp) TO (cIndex)
+			::Close()
+		Else
+			Return .F. 
+		Endif
+
+	Endif
+	
+Next
+
+Return  .T.
 
 // ----------------------------------------------------------
 // Busca um registro que atenda os criterios informados
@@ -779,13 +824,20 @@ cQuery += ' WHERE '
 
 For nI := 1 to nCnt
 	
+	nPos := ::FieldPos(aRecord[nI][1])
+	cType := ::FieldType(nPos)
+    
+	If cType = 'M'
+		// Campo memo por hora nao suportado 
+		// na busca generica
+		Loop
+	Endif
+
 	If nI > 1
 		cQuery += ' AND '
 	Endif
 	
-	nPos := ::FieldPos(aRecord[nI][1])
-	cType := ::FieldType(nPos)
-	
+
 	cQuery += ::FieldName(nPos)
 	
 	IF cType = 'C'

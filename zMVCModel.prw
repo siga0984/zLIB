@@ -22,7 +22,7 @@ This is the data layer which consists of the business logic of the system.
 It consists of all the data of the application
 It also represents the state of the application.
 It consists of classes which have the connection to the database.
-The controller connects with model and fetches the data and sends to the view layer.
+`The controller connects with model and fetches the data and sends to the view layer.
 The model connects with the database as well and stores the data into a database which is connected to it.
 
 O Modelo trabalha com um buffer de registro corrente no array ::aRecord
@@ -46,7 +46,7 @@ CLASS ZMVCMODEL FROM LONGNAMECLASS
   METHOD INIT()                 // Inicialização do modelo 
   METHOD DONE()                 // Finalizacao do Modelo 
 	
-  METHOD GetZLIBEnv()                 // Retorna o objeto do Ambiente da execução atual 
+  METHOD GetZLIBEnv()           // Retorna o objeto do Ambiente da execução atual 
   METHOD GetErrorStr()          // Recupera ultima mensagem de erro 
   METHOD SetError()             // Seta mensagem de erro 
   METHOD ClearError()           // Limpa ultima ocorrencia de erro 
@@ -154,6 +154,12 @@ Else
 	// a estrutura da definição da tabela 
 	lOk := ::oObjectTable:UpdStruct(::oObjectDef)
 
+	IF lOk
+
+		lOk := ::oObjectTable:UpdIndex(::oObjectDef)
+	
+	Endif
+
 Endif
 
 If !lOk
@@ -227,6 +233,7 @@ Return ::oObjectDef:RunEvents(nEvent,self)
 
 METHOD RunAction(cAction) CLASS ZMVCMODEL
 ::oLogger:Write("RunAction","Action="+cAction)
+::ClearError()
 Return ::oObjectDef:RunAction(cAction,self)
 
 // ----------------------------------------------------------
@@ -533,7 +540,7 @@ If lOk
 		Endif
 	Next
 
-	if len(aUpdate) > 0 
+	If len(aUpdate) > 0 
 
 		// VERBOSE -- apenas campos alterados 
 		conout(padc(' ZMVCMODEL:UPDATE() ',79,'-'))	
@@ -568,9 +575,55 @@ Local aRow := {}
 Local lOk
 Local nFlds
 Local nI
+Local lUseCache
+Local oCacheObj
 
 ::ClearError()
 ::oLogger:Write("GetData")
+
+lUseCache := ::oObjectDef:GetUseCache()
+
+IF	lUseCache
+	oCacheObj := ::oEnv:GetObject("MEMCACHED")
+	IF oCacheObj = NIL
+		conout("MEMCACHED Object NOT SET.")
+		lUseCache := .F.
+	Endif
+Endif
+
+IF lUseCache  
+
+	IF !oCacheObj:IsConnected()
+		lOk := oCacheObj:Connect()
+	Endif	
+	
+	IF lOk
+		lOk := oCacheObj:Get(::cTable+"_CACHE_ACOLS",@aCols)
+		If !lOk 
+			conout("MemCache Error : "+oCacheObj:GetErrorStr())
+		Endif
+	Endif
+
+	If lOk 
+		lOk := oCacheObj:Get(::cTable+"_CACHE_ADATA",@aData)
+		If !lOk 
+			conout("MemCache Error : "+oCacheObj:GetErrorStr())
+		Endif
+	Endif 
+	
+	If lOk .and. !empty(aCols) .and. !empty(aData)
+		conout("Data retrieved from MEMCACHE")
+		oCacheObj:Disconnect()	
+		Return .T. 
+	Endif
+
+	conout("Fail to retrieve from MEMCACHE")
+	                  
+	aCols := {}
+	aData := {}
+	
+Endif
+
 
 lOk := ::oDBConn:Connect()
 
@@ -624,6 +677,23 @@ Endif
 
 // e Desconecta do banco 
 ::oDBConn:Disconnect()
+
+IF lUseCache  
+
+	// Se tem cache em uso, conecta 
+	IF !oCacheObj:IsConnected()
+		lOk := oCacheObj:Connect()
+	Endif	
+
+	If lOk
+		oCacheObj:Set(::cTable+"_CACHE_ACOLS",aCols)
+		oCacheObj:Set(::cTable+"_CACHE_ADATA",aData)
+		oCacheObj:Disconnect()	
+		conout("Data Stored into CACHE")
+	Endif
+
+Endif
+
 
 Return lOk
 

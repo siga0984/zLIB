@@ -30,6 +30,7 @@ CLASS ZFIELDDEF FROM LONGNAMECLASS
    DATA cLookTab                       // Tabela da chave estrangeira do campo  
    DATA cLookKey                       // Campo Chave da Chave estrangeira
    DATA cLookFld                       // Campo ou expressao relacionada a tabela estrangeira 
+   DATA xDefault
 
    METHOD New()                        // Construtor 
    METHOD SetLabel()                   // Informa label e descrição do campo 
@@ -48,6 +49,7 @@ CLASS ZFIELDDEF FROM LONGNAMECLASS
    METHOD GetSize()                    // Recupera o tamanho do campo 
    METHOD GetDec()                     // Recupera o numero de casas decimais do campo 
    METHOD DefaultValue()               // Recupera o valor do cammpo "Vazio" de acordo com o tipo 
+   METHOD SetDefault()                 // Seta um valor default para o campo para todas as operacoes
    METHOD SetEnabled()                 // Seta se o campo está habilitado 
    METHOD SetVisible()                 // Seta se o campo está visivel 
    METHOD SetReadOnly()                // Seta se o campo é somente leitura ( nao editavel ) 
@@ -172,6 +174,8 @@ Return ::nDec
 
 // ------------------------------------------------------
 // Recupera o valor default do campo vazio
+// Caso tenha sido setado um valor default para o campo, este
+// tem precedencia sobre o valor vazio 
 // [c] Caractere com espacos em branco 
 // [d] data vazia
 // [n] zero
@@ -179,6 +183,10 @@ Return ::nDec
 // [m] String vazia 
 
 METHOD DefaultValue() CLASS ZFIELDDEF
+
+If ::xDefault != NIL
+	Return ::xDefault
+Endif
 
 If ::cType  = 'C'
 	Return Space(::nSize)
@@ -193,6 +201,14 @@ ElseIF ::cType  = 'M'
 Endif
 
 Return NIL 
+
+
+// ------------------------------------------------------
+// Permite setar um valor default para o campo 
+
+METHOD SetDefault(xValue) CLASS ZFIELDDEF
+::xDefault := xValue
+Return
 
 
 // ------------------------------------------------------
