@@ -101,6 +101,7 @@ CLASS ZMVCVIEW FROM LONGNAMECLASS
 
     DATA oEnv            // Environment em uso 
 	DATA oControl        // Objeto de controle dos dados 
+    DATA oObjectDef      // Definição do Componente em uso 
 	DATA cTitle          // Titulo da Janela de Interface
 	DATA aGets           // Array com objetos da interface e definicao 
 	DATA oFirstGet       // Primeiro GET Visivel e editavel da interface
@@ -160,14 +161,16 @@ ENDCLASS
 
 
 // ----------------------------------------------------------
-// Construtor
+// Construtor da View, recebe a definção como parametro
 
-METHOD NEW(cTitle) CLASS ZMVCVIEW
-::cTitle  := cTitle
-::cError  := ''
-::aGets   := {}
-::oFirstGet := NIL
-::aOldRecord := {}
+METHOD NEW(oDef) CLASS ZMVCVIEW
+
+::oObjectDef  := oDef
+::cTitle      := oDef:GetTitle()
+::cError      := ''
+::aGets       := {}
+::oFirstGet   := NIL
+::aOldRecord  := {}
 
 #ifdef HAS_NAVBUTTONS
 ::aBtnNav := {}
@@ -179,7 +182,7 @@ METHOD NEW(cTitle) CLASS ZMVCVIEW
 ::nRecno  := 0
 
 ::oLogger := ZLOGGER():New("ZMVCVIEW")
-::oLogger:Write("NEW","Interface ["+cTitle+"]")
+::oLogger:Write("NEW","Interface ["+::cTitle+"] based on Definition ["+GetClassName(oDef)+"]")
 
 Return self
 
@@ -393,7 +396,7 @@ oPanelBase:ALIGN := CONTROL_ALIGN_ALLCLIENT
 oPanelCrud:ALIGN := CONTROL_ALIGN_ALLCLIENT  
 
 // Pega o array a definicao dos campos a partir da definicao do componente
-aFieldsDef := ::oControl:GetObjectDef():GetFields()
+aFieldsDef := ::oObjectDef:GetFields()
 
 // Monta os arrays de objetos e variaveis de interface
 nFldCount := len( aFieldsDef )
@@ -430,7 +433,7 @@ For nI := 1 to nFldCount
 		// Campo data com mais 2 caraceres 
 		nScrSize += 2	
 	Endif
-	If left(cPicture,3) == '@R '
+	If left(cPicture,3) == '@R ' .or. left(cPicture,3) == '@E '
 		nGetSize := CALCSIZEGET( MAX( nScrSize, len(cPicture)-3 ) ) 
 	Else
 		nGetSize := CALCSIZEGET( nScrSize ) 

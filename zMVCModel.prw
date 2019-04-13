@@ -70,10 +70,10 @@ ENDCLASS
 
 // ----------------------------------------------------------
 
-METHOD NEW(cTable,oDef) CLASS ZMVCMODEL
+METHOD NEW(oDef) CLASS ZMVCMODEL
 
-::cTable := cTable
 ::oObjectDef := oDef
+::cTable     := oDef:TableName()
 
 ::lInited := .F. 
 ::cError := ''

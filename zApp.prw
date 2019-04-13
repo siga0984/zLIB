@@ -11,11 +11,20 @@ Projetada inicialmente para SmartClient
 
 CLASS ZAPP FROM LONGNAMECLASS
 
+   DATA oEnv
    DATA oRunObject
+   DATA cMainDef
+   DATA aDefs
+   DATA aModels
+   DATA aControls
    
    METHOD New() 					// Construtor 
    METHOD Run()						// Roda a Aplicação 
    METHOD Done()                    // Finaliza os objetos 
+   
+   METHOD SetMainDef()
+   METHOD AddAuxDef()
+   METHOD BuildMVC()
   
 ENDCLASS
 
@@ -23,7 +32,13 @@ ENDCLASS
 // ------------------------------------------------------
 // Construtor
 
-METHOD NEW() CLASS ZAPP
+METHOD NEW(_oEnv) CLASS ZAPP
+
+::oEnv      := _oEnv
+::aDefs     := {}
+::aModels   := {}
+::aControls := {}
+
 Return self
 
 
@@ -51,3 +66,15 @@ METHOD DONE() CLASS ZAPP
 
 Return
 
+// ------------------------------------------------------
+
+METHOD SetMainDef(cDefName)  CLASS ZAPP
+::cMainDef := cDefName
+Return                
+
+
+METHOD AddAuxDef() CLASS ZAPP
+Return
+
+METHOD BuildMVC() CLASS ZAPP
+Return

@@ -19,32 +19,32 @@ Controller Layer:
 CLASS ZMVCCONTROL FROM LONGNAMECLASS
 
    DATA oEnv                     // Environment em uso 
-   DATA aModels
-   DATA oModel
-   DATA oView
-   DATA cError
+   DATA aModels                  // Modelos instanciados pelo Controler
+   DATA oModel                   // Modelo atualmente em uso 
+   DATA oView                    // View que está usando este controler
+   DATA cError                   // Ultimo erro registrado 
    DATA oLogger                  // Objeto de log 
 
-   METHOD NEW()
-   METHOD AddModel()
-   METHOD SetModel()
-   METHOD GetModel()
-   METHOD SetZLibEnv()
-   METHOD GetZLibEnv()
-   METHOD GetObjectDef()
-   METHOD GetErrorStr()
-   METHOD SetError()
-   METHOD ClearError()
+   METHOD NEW()                  // Cria o controller
+   METHOD AddModel()             // Acrescenta um modelo 
+   METHOD SetModel()             // Seta o modelo ativo a partir do nome da tabela 
+   METHOD GetModel()             // Recupera a tabela do modelo ativo 
+   METHOD SetZLibEnv()           // Seta o ambiente para uso da classe
+   METHOD GetZLibEnv()           // Recupera o ambiente em uso 
+   METHOD GetObjectDef()         // Recupera a definição do objeto do modelo em uso 
+   METHOD GetErrorStr()          // Recupera string com o ultimo erro 
+   METHOD SetError()             // Seta ocorrencia de erro na instancia atual 
+   METHOD ClearError()           // Limpa registro de ultimo erro 
 
-   METHOD Done()
-   METHOD GetActions()
-   METHOD RunAction()
+   METHOD Done()                 // Encerra o uso do Controler
+   METHOD GetActions()           // Recupera as ações do modelo / definicao em uso 
+   METHOD RunAction()            // Executa uma ação do modelo pelo nome 
 
-   METHOD NewRecord()
-   METHOD Write()
-   METHOD Search() 
-   METHOD Update() 
-   METHOD GetData()
+   METHOD NewRecord()            // Cria um novo registro em branco no modelo atual 
+   METHOD Write()                // Insere um novo registro no modelo em uso 
+   METHOD Search()               // Realiza uma busca no modelo em uso 
+   METHOD Update()               // Atualiza um registro do modelo em uso 
+   METHOD GetData()              // Recupera todos os dados da tabela do modelo em uso 
 
 ENDCLASS 
 

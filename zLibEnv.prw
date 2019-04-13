@@ -6,6 +6,10 @@
 Classe de montagem de Ambiente 
 
 Por hora, ela seta o formato de data e habilita acentuação
+                                                              
+TODO 
+
+- Usar HASH na lista de objetos do Ambiente 
 
 ========================================================== */
 
@@ -54,31 +58,33 @@ Return
 // Limpa os objetos relacionados ao ambiente 
 
 METHOD DONE() CLASS ZLIBENV
-Local nI , cId , oObj
+Local cId , oObj , oNode
 
 If ::lVerbose
 	conout("ZLIBENV:Done() -- Begin ")	
 Endif		
 
-For nI := 1 to len(::aObjList)
+While len(::aObjList) > 0 
+
+    oNode := aTail(::aObjList)
 	
-	cId  := ::aObjList[nI][1]
-	oObj := ::aObjList[nI][2]
+	cId  := oNode[1]
+	oObj := oNode[2]
 	
 	If oObj != NIL
 	
 		If ::lVerbose
-			conout("ZLIBENV:Done() -- FreeObj ["+cId+"]")
+			conout("ZLIBENV:Done() -- FreeObj ["+cId+"] of class ["+GetClassName(oObj)+"]")
 		Endif
 		
 		oObj:Done()
 		FreeObj(oObj)
 		
 	Endif
-	
-Next
 
-aSize(::aObjList,0)
+	aSize(::aObjList, len(::aObjList)-1 )
+	
+Enddo
 
 If ::lVerbose
 	conout("ZLIBENV:Done() -- End")	
