@@ -21,10 +21,13 @@ CLASS ZLIBENV
   METHOD NEW()      // Construtor
   METHOD DONE()     // Finalizador / Destrutor
 
-  METHOD SETENV()      // Seta o minimo do ambiente ( formato de data e acentuação ) 
-  METHOD SetObject()   // Guarda um objeto do ambiente
-  METHOD GetObject()   // Recupera um objeto do ambiente 
-
+  METHOD SETENV()          // Seta o minimo do ambiente ( formato de data e acentuação ) 
+  METHOD SetObject()       // Guarda um objeto do ambiente
+  METHOD GetObject()       // Recupera um objeto do ambiente 
+  METHOD InitDBConn()      // Inicia objeto de Pool com DBAccess
+  METHOD InitMVCFactory()  // Inicia Factories de MVC
+  METHOD InitMemCache()    // Inicializa memcade -- caso habilitado 
+  
 ENDCLASS
 
 // ----------------------------------------------------------
@@ -122,4 +125,57 @@ If nPos > 0
 	Return ::aObjList[nPos][2]
 Endif
 Return NIL
+
+
+// ----------------------------------------------------------
+//
+
+METHOD InitDBConn()  CLASS ZLIBENV
+Local oDBConn
+oDBConn  := ZDBACCESS():New()
+oDBConn:SETPOOL(.T. , "DB_POOL")
+::SetObject("DBCONN",oDBConn)
+Return .T. 
+
+
+// ----------------------------------------------------------
+//
+
+METHOD InitMVCFactory()  CLASS ZLIBENV
+Local oDefFactory
+Local oModelFactory
+Local oViewFactory
+Local oCtrlFactory
+
+// Cria e Guarda o FACTORY de Definições no ambiente
+oDefFactory := ZDEFFACTORY():New()
+::SetObject("ZDEFFACTORY",oDefFactory)
+
+// Factory de Modelos 
+oModelFactory := ZMODELFACTORY():New()
+::SetObject("ZMODELFACTORY",oModelFactory)
+
+// Factory de Views 
+oViewFactory := ZVIEWFACTORY():New()
+::SetObject("ZVIEWFACTORY",oViewFactory)
+
+// Factory de Controles
+oCtrlFactory := ZCONTROLFACTORY():New()
+::SetObject("ZCONTROLFACTORY",oCtrlFactory)
+
+Return .T. 
+
+
+
+METHOD InitMemCache()  CLASS ZLIBENV
+Local oMemCache
+
+// Cria um objeto de cache em memoria 
+// e guarda no environment
+IF Val(GetSrvProfString("UseMemCache","0")) > 0 
+	oMemCache := ZMEMCACHED():New( "127.0.0.1" , 11211 )
+	::SetObject("MEMCACHED",oMemCache)
+Endif
+
+Return .T. 
 

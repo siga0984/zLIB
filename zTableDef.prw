@@ -19,8 +19,11 @@ CLASS ZTABLEDEF FROM LONGNAMECLASS
    DATA aEvents
    DATA aActions
    DATA lUseCache
+   DATA aAuxDefs
 
    METHOD New()                        // Construtor 
+   METHOD AddAuxDef()
+   METHOD GetAuxDefs()
    METHOD SetStruct()                  // Seta uma estrutura ( Array formato DBF ) 
    METHOD GetStruct()                  // Recupera a estrutura ( Array Formato DBF ) 
    METHOD GetIndex()                   // Recupera a definicao de indices 
@@ -55,7 +58,18 @@ METHOD NEW(cId) CLASS ZTABLEDEF
 ::aEvents := {}
 ::aActions := {}
 ::lUseCache := .F. 
+::aAuxDefs  := {}
 Return self
+
+// ------------------------------------------------------
+METHOD AddAuxDef(cDefName) CLASS ZTABLEDEF
+aadd(::aAuxDefs,cDefName)
+Return
+
+// ------------------------------------------------------
+METHOD GetAuxDefs() CLASS ZTABLEDEF
+Return ::aAuxDefs
+
 
 // ------------------------------------------------------
 

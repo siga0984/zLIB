@@ -586,7 +586,7 @@ lUseCache := ::oObjectDef:GetUseCache()
 IF	lUseCache
 	oCacheObj := ::oEnv:GetObject("MEMCACHED")
 	IF oCacheObj = NIL
-		conout("MEMCACHED Object NOT SET.")
+		::oLogger:Write("GetData","Warning : MEMCACHED Object NOT SET.")
 		lUseCache := .F.
 	Endif
 Endif
@@ -600,30 +600,29 @@ IF lUseCache
 	IF lOk
 		lOk := oCacheObj:Get(::cTable+"_CACHE_ACOLS",@aCols)
 		If !lOk 
-			conout("MemCache Error : "+oCacheObj:GetErrorStr())
+			::oLogger:Write("GetData","MemCache Error : "+oCacheObj:GetErrorStr())
 		Endif
 	Endif
 
 	If lOk 
 		lOk := oCacheObj:Get(::cTable+"_CACHE_ADATA",@aData)
 		If !lOk 
-			conout("MemCache Error : "+oCacheObj:GetErrorStr())
+			::oLogger:Write("GetData","MemCache Error : "+oCacheObj:GetErrorStr())
 		Endif
 	Endif 
 	
 	If lOk .and. !empty(aCols) .and. !empty(aData)
-		conout("Data retrieved from MEMCACHE")
+		::oLogger:Write("GetData","Data retrieved from MEMCACHE")
 		oCacheObj:Disconnect()	
 		Return .T. 
 	Endif
 
-	conout("Fail to retrieve from MEMCACHE")
+	::oLogger:Write("GetData","Warning - FAILED to retrieve data from MEMCACHE ")
 	                  
 	aCols := {}
 	aData := {}
 	
 Endif
-
 
 lOk := ::oDBConn:Connect()
 
@@ -738,4 +737,3 @@ If !empty(cMsgVld)
 Endif
 
 Return lOk
-
