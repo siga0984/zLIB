@@ -61,6 +61,7 @@ CLASS ZBITMAP FROM LONGNAMECLASS
     METHOD SetBPP()        // Troca a resoluçao de cores
     METHOD Paint()         // pintura de área da imagem delimitada
     METHOD FlipH()         // Inverte horizontalmente uma área da imagem ou a imagem inteira
+    METHOD FlipV()         // Inverte verticalmente uma área da imagem ou a imagem inteira
     METHOD Cut()           // Copia uma parte da imagem para a área interna de transferencia e limpa a área da imagem
     METHOD Copy()          // Copia uma parte da imagem para a área interna de transferencia
     METHOD Paste()         // Plota a imagem da area interna de transferencia na coordenada indicada
@@ -107,7 +108,10 @@ IF ::nBPP = 1
 ElseIf ::nBPP = 4
 	::nOffSet  := 118
 	::nBgColor := 15 // Branco 
-Endif
+ElseIf ::nBPP = 8
+	::nOffSet  := 1078
+	::nBgColor := 255 // Branco 
+Endif        
 aRow := {}
 
 // Inicializa matrix com a cor de fundo
@@ -243,6 +247,8 @@ If ::nBPP = 1
 	nCores := 2
 ElseIF ::nBPP = 4
 	nCores := 16
+ElseIF ::nBPP = 8
+	nCores := 256
 Endif
 	
 nPos := 55
@@ -283,6 +289,11 @@ For nL := 0 to ::nHeight-1
 			cBits := NTOBIT8(nByte) 
 			aadd(aRow, BITSTON(Substr(cBits,1,4)))
 			aadd(aRow, BITSTON(Substr(cBits,5,4)))
+		ElseIf ::nBPP == 8
+			// Bitmap de 256 cores
+			// 1 pixels por byte
+			cBits := NTOBIT8(nByte) 
+			aadd(aRow, BITSTON(cBits))
 		Else
 			UserException("Unsupported ("+cValToChar(::nBPP)+") Bytes per Pixel")
 		Endif
@@ -453,7 +464,7 @@ Local nH, nI
 Local cHeader := ''
 Local cHeadInfo := ''
 
-If ::nBPP <> 1	.and. ::nBPP <> 4
+If ::nBPP <> 1	.and. ::nBPP <> 4 .and. ::nBPP <> 8
 	UserException("Format not implemented (yet) to save")
 Endif
 
@@ -552,6 +563,25 @@ ElseIf ::nBPP == 4
 		fWrite(nH,cBinRow)
 	Next
 	
+ElseIf ::nBPP == 8
+
+	// Gravação de imagem 256 cores
+	// 8 bits por cor
+
+	For nL := ::nHeight to 1 STEP -1
+		cBinRow := ''
+		For nC := 1 to ::nWidth 
+			cBinRow += chr(::aMatrix[nL][nC])
+		Next
+		while len(cBinRow) < ::nRowSize
+			// Padding Bytes ( ASCII 0 )
+			cBinRow += Chr(0)
+		Enddo
+		// Grava os bytes da linha no arquivo
+		fWrite(nH,cBinRow)
+	Next
+	
+
 Else
 	UserException("TODO")
 	
@@ -853,6 +883,53 @@ Next
 
 Return .T. 
 
+// Inverte verticalmente uma área da imagem
+// Ou a imagem inteira caso a área nao seja especificada
+METHOD FlipV(L1,C1,L2,C2) CLASS ZBITMAP
+Local nL  , nC            
+Local nRow, nSwap
+IF pCount() == 0
+	// Faz flip vertical da imagem inteira
+	L1 := 0
+	C1 := 0
+	L2 := ::nHeight-1
+	C2 := ::nWidth-1
+Else
+	// Valida coordenadas informados
+	IF L1 < 0 .or. L1 >= ::nHeight
+		::cError := "Invalid 1o Line -- Out Of Image Area"
+		Return .F.
+	ElseIF L2 < 0 .or. L2 >= ::nHeight
+		::cError := "Invalid 2o Line -- Out Of Image Area"
+		Return .F.
+	ElseIf C1 < 0 .or. C1 >= ::nWidth
+		::cError := "Invalid 1o Column -- Out Of Image Area"
+		Return .F.
+	ElseIf C2 < 0 .or. C2 >= ::nWidth
+		::cError := "Invalid 2o Column -- Out Of Image Area"
+		Return .F.
+	ElseIf L1 > L2
+		::cError := "Invalid Lines -- Order mismatch"
+		Return .F.
+	ElseIf C1 > C2
+		::cError := "Invalid Columns -- Order mismatch"
+		Return .F.
+	Endif
+Endif
+
+// Troca os pontos da primeira linha com a ultima
+// depois da segunda com a penultima 
+// até chegar na linha central da área a ser invertida      
+nRow := L2+1
+For nL := L1+1 to L1 + INT( ( L2-L1 ) / 2 ) + 1
+	For nC := C1+1 to C2+1
+		ZSWAP( ::aMatrix[nL][nC] , ::aMatrix[nRow][nC] , nSwap )
+	Next
+	nRow--
+Next
+
+Return .T. 
+
 // ----------------------------------------------------
 // Copia uma parte da imagem para a área interna 
 // de transferencia e limpa a área da imagem
@@ -965,4 +1042,5 @@ nRet := BMPTOJPG(cTmpFile,cJpgFile)
 conout(nRet)
 
 Return
+
 
