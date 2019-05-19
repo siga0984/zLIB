@@ -3,6 +3,8 @@
 
 #DEFINE PI 3.14159265 // ACos(-1)
 
+#TRANSLATE ZSWAP( <X> , <Y> , <S> ) =>  ( <S> := <X> , <X> := <Y> , <Y> := <S> )
+
 /* ===========================================================================
 
 Classe		ZBITMAP
@@ -25,6 +27,7 @@ CLASS ZBITMAP FROM LONGNAMECLASS
     DATA nBPP          // Bits por Pixel ( 1,4,...)
     DATA cERROR        // String com ultima ocorrencia de erro da classe         
     DATA aMatrix       // Matrix de pontos do Bitmap ( cores ) 
+    DATA aTrans        // Area interna de transferencia
     DATA aColors       // Tabela de cores do Bitmap
     DATA cFormat       // Identificador do formato do arquivo 
     DATA nOffSet       // Offset de inico dos dados 
@@ -45,17 +48,22 @@ CLASS ZBITMAP FROM LONGNAMECLASS
     METHOD New()           // Cria uma imagem vazia 
     METHOD LoadFromFile()  // Le imagem de arquivo 
     METHOD GetErrorStr()   // Recupera ultimo erro da classe
-    METHOD Clear()         // Limpa a imagem ( preenche com a cor de fundo ) 
+    METHOD Clear()         // Limpa a imagem ( preenche com a cor de fundo ) ou uma parte dela  
     METHOD SetPixel()      // Seta a cor de um ponto 
     METHOD GetPixel()      // Recupera a cor de um ponto 
     METHOD BgColor()       // Seta ou Recupera a cor de fundo 
     METHOD Negative()      // Inverte as cores da imagem ( = Negativo ) 
-    METHOD SaveToFile()    // Salva a imagem em disco 
+    METHOD SaveToBMP()     // Salva a imagem em disco como Bitmap
+    METHOD SaveToJPG()     // Salva a imagem em disco como JPEG
     METHOD Rectangle()     // Desenha um retângulo na imagem
     METHOD Line()          // Desenha uma linha na imagem entre dois pontos
     METHOD Circle()        // Desenha um círculo 
     METHOD SetBPP()        // Troca a resoluçao de cores
-    METHOD PAint()         // pintura de área da imagem delimitada
+    METHOD Paint()         // pintura de área da imagem delimitada
+    METHOD FlipH()         // Inverte horizontalmente uma área da imagem ou a imagem inteira
+    METHOD Cut()           // Copia uma parte da imagem para a área interna de transferencia e limpa a área da imagem
+    METHOD Copy()          // Copia uma parte da imagem para a área interna de transferencia
+    METHOD Paste()         // Plota a imagem da area interna de transferencia na coordenada indicada
 
 ENDCLASS
 
@@ -230,23 +238,28 @@ Endif
 ::nRowSize   := int( ( (::nBPP*::nWidth) + 31 ) / 32 ) * 4 
 
 // Tabela de cores para 4 bytes por pixel ( 16 cores ) 
-
-If ::nBPP = 4
-	
-	nPos := 55
-	For nCor := 0 to 15
-
-		nBlue  := asc(substr(cBuffer,nPos,1))
-		nGreen := asc(substr(cBuffer,nPos+1,1))
-		nRed   := asc(substr(cBuffer,nPos+2,1))
-		nAlpha := asc(substr(cBuffer,nPos+3,1))
-		nPos += 4
-		
-		// Conout("BGRA("+cValToChar(nCor)+") = ("+cValToChar(nBlue)+","+cValToChar(nGreen)+","+cValToChar(nRed)+","+cValToChar(nAlpha)+")")
-		
-	Next
-	
+::aColors := {}
+If ::nBPP = 1
+	nCores := 2
+ElseIF ::nBPP = 4
+	nCores := 16
 Endif
+	
+nPos := 55
+For nCor := 0 to nCores-1
+	
+	nBlue  := asc(substr(cBuffer,nPos,1))
+	nGreen := asc(substr(cBuffer,nPos+1,1))
+	nRed   := asc(substr(cBuffer,nPos+2,1))
+	nAlpha := asc(substr(cBuffer,nPos+3,1))
+	
+	aadd(::aColors,{nBlue,nGreen,nRed,nAlpha})
+	
+	nPos += 4
+	
+	// Conout("BGRA("+cValToChar(nCor)+") = ("+cValToChar(nBlue)+","+cValToChar(nGreen)+","+cValToChar(nRed)+","+cValToChar(nAlpha)+")")
+	
+Next
 
 // Leitura dos dados na matriz
 
@@ -299,20 +312,52 @@ Return ::cError
 // Limpa a imagem preenchendo os pontos com 
 // a cor de fundo 
 
-METHOD Clear() CLASS ZBITMAP
+METHOD Clear(L1,C1,L2,C2) CLASS ZBITMAP
 Local nL, nC
-If ::aMatrix != NIL
-	For nL := 1 to ::nHeight
-		For nC := 1 to ::nWidth
-			::aMatrix[nL][nC] := ::nBGColor 
-		Next
-	Next
+
+IF pCount() == 0
+	// Limpa a imagem inteira
+	L1 := 0
+	C1 := 0
+	L2 := ::nHeight-1
+	C2 := ::nWidth-1
+Else
+	// Valida coordenadas informadas para limpeza
+	IF L1 < 0 .or. L1 >= ::nHeight
+		::cError := "Invalid 1o Line -- Out Of Image Area"
+		Return .F.
+	ElseIF L2 < 0 .or. L2 >= ::nHeight
+		::cError := "Invalid 2o Line -- Out Of Image Area"
+		Return .F.
+	ElseIf C1 < 0 .or. C1 >= ::nWidth
+		::cError := "Invalid 1o Column -- Out Of Image Area"
+		Return .F.
+	ElseIf C2 < 0 .or. C2 >= ::nWidth
+		::cError := "Invalid 2o Column -- Out Of Image Area"
+		Return .F.
+	ElseIf L1 > L2
+		::cError := "Invalid Lines -- Order mismatch"
+		Return .F.
+	ElseIf C1 > C2
+		::cError := "Invalid Columns -- Order mismatch"
+		Return .F.
+	Endif
 Endif
+
+// Limpa a área informada
+For nL := L1+1 to L2+1
+	For nC := C1+1 to C2+1
+		::aMatrix[nL][nC] := ::nBGColor
+	Next
+Next
+
 Return
 
 // -------------------------------------------------
 // Seta um pixel com uma cor em uma coordenada 
 // linha e coluna, base 0 , cor é opcional 
+// Diametro da caneta (Pen) opcional
+
 METHOD SETPIXEL(nL,nC,nColor,nPen) CLASS ZBITMAP
 Local nRow := nL+1
 Local nCol := nC+1
@@ -334,12 +379,14 @@ Endif
 ::aMatrix[nRow][nCol] := nColor
 
 IF nPen > 1
+	// 2x2
 	::aMatrix[nRow+1][nCol  ] := nColor
 	::aMatrix[nRow  ][nCol+1] := nColor
 	::aMatrix[nRow+1][nCol+1] := nColor
 Endif
 
 If nPen > 2
+	// 3x3
 	::aMatrix[nRow-1][nCol  ] := nColor
 	::aMatrix[nRow+1][nCol  ] := nColor
 	::aMatrix[nRow  ][nCol-1] := nColor
@@ -347,21 +394,24 @@ If nPen > 2
 Endif
 
 If nPen > 3
+	// 4x4
 	::aMatrix[nRow+2][nCol  ] := nColor
 	::aMatrix[nRow  ][nCol+2] := nColor
 	::aMatrix[nRow+2][nCol+2] := nColor
 Endif
 
 IF nPen > 4
+	// Caneta Acima de 4 ..
+	// Verifica limites da imagem 
 	nHalf := nPen/2
 	For nRow := nL+1-nHalf TO nL+1+nHalf
-		For nCol := nC+1-nHalf TO nC+1+nHalf
-			IF nCol > 0 .and. nCol <= ::nWidth
-				If nRow > 0 .and. nRow <= ::nHeight
+		If nRow > 0 .and. nRow <= ::nHeight
+			For nCol := nC+1-nHalf TO nC+1+nHalf
+				IF nCol > 0 .and. nCol <= ::nWidth
 					::aMatrix[nRow][nCol] := nColor
 				Endif
-			Endif
-		Next
+			Next
+		Endif
 	Next
 Endif
 
@@ -398,7 +448,7 @@ Return
 // ---------------------------------------------------
 // Salva o arquivo em disco                           
 
-METHOD SaveToFile(cFile)  CLASS ZBITMAP
+METHOD SaveToBMP(cFile)  CLASS ZBITMAP
 Local nH, nI
 Local cHeader := ''
 Local cHeadInfo := ''
@@ -489,6 +539,11 @@ ElseIf ::nBPP == 4
 				cBitRow := ''
 			Endif
 		Next
+		If !Empty(cBitRow)
+			cBitRow += '0000'
+			cBinRow += chr(BITSToN(cBitRow))
+			cBitRow := ''
+		Endif
 		while len(cBinRow) < ::nRowSize
 			// Padding Bytes ( ASCII 0 )
 			cBinRow += Chr(0)
@@ -751,6 +806,163 @@ While len(aPaint) > 0
 	Endif
 
 Enddo
+
+Return
+
+// Inverte horizontalmente uma área da imagem
+// Ou a imagem inteira caso a área nao seja especificada
+METHOD FlipH(L1,C1,L2,C2) CLASS ZBITMAP
+Local nL  , nC            
+Local nCol, nSwap
+IF pCount() == 0
+	// Faz flip horizontal da imagem inteira
+	L1 := 0
+	C1 := 0
+	L2 := ::nHeight-1
+	C2 := ::nWidth-1
+Else
+	// Valida coordenadas informados
+	IF L1 < 0 .or. L1 >= ::nHeight
+		::cError := "Invalid 1o Line -- Out Of Image Area"
+		Return .F.
+	ElseIF L2 < 0 .or. L2 >= ::nHeight
+		::cError := "Invalid 2o Line -- Out Of Image Area"
+		Return .F.
+	ElseIf C1 < 0 .or. C1 >= ::nWidth
+		::cError := "Invalid 1o Column -- Out Of Image Area"
+		Return .F.
+	ElseIf C2 < 0 .or. C2 >= ::nWidth
+		::cError := "Invalid 2o Column -- Out Of Image Area"
+		Return .F.
+	ElseIf L1 > L2
+		::cError := "Invalid Lines -- Order mismatch"
+		Return .F.
+	ElseIf C1 > C2
+		::cError := "Invalid Columns -- Order mismatch"
+		Return .F.
+	Endif
+Endif
+
+For nL := L1+1 to L2+1
+	nCol := C2+1
+	For nC := C1 + 1 TO C1 + INT( ( C2-C1 ) / 2 ) + 1
+		ZSWAP( ::aMatrix[nL][nC] , ::aMatrix[nL][nCol] , nSwap )
+		nCol--
+	Next
+Next
+
+Return .T. 
+
+// ----------------------------------------------------
+// Copia uma parte da imagem para a área interna 
+// de transferencia e limpa a área da imagem
+
+METHOD Cut(L1,C1,L2,C2)            CLASS ZBITMAP
+::Copy(L1,C1,L2,C2)
+::Clear(L1,C1,L2,C2)
+Return .T. 
+
+// ----------------------------------------------------
+// Copia uma parte da imagem para a área interna de transferencia
+
+METHOD Copy(L1,C1,L2,C2)           CLASS ZBITMAP
+Local nL  , nC            
+Local aRow := {}
+
+IF pCount() == 0
+	// Copia a imagem inteira para a area de transferencia
+	::aTrans := aClone(::aMatrix)
+    Return .T.
+Endif
+
+// Valida coordenadas informados
+IF L1 < 0 .or. L1 >= ::nHeight
+	::cError := "Invalid 1o Line -- Out Of Image Area"
+	Return .F.
+ElseIF L2 < 0 .or. L2 >= ::nHeight
+	::cError := "Invalid 2o Line -- Out Of Image Area"
+	Return .F.
+ElseIf C1 < 0 .or. C1 >= ::nWidth
+	::cError := "Invalid 1o Column -- Out Of Image Area"
+	Return .F.
+ElseIf C2 < 0 .or. C2 >= ::nWidth
+	::cError := "Invalid 2o Column -- Out Of Image Area"
+	Return .F.
+ElseIf L1 > L2
+	::cError := "Invalid Lines -- Order mismatch"
+	Return .F.
+ElseIf C1 > C2
+	::cError := "Invalid Columns -- Order mismatch"
+	Return .F.
+Endif
+
+::aTrans := {}
+
+// Copia a área informada para a area de transferencia interna
+For nL := L1+1 to L2+1
+	For nC := C1+1 to C2+1
+		aadd(aRow,::aMatrix[nL][nC])
+	Next
+	aadd(::aTrans,aClone(aRow))
+	aSize(aRow,0)
+Next
+
+Return .T.
+
+// ----------------------------------------------------
+// Plota a imagem da area interna de transferencia na coordenada indicada
+
+METHOD Paste(L1,C1)                CLASS ZBITMAP
+Local nL , nC
+
+// Valida a area de transferencis
+If empty(::aTrans)
+	::cError := "Empty Transfer Area"
+	Return .F.
+Endif
+
+// Valida as cordenadas
+IF L1 < 0 .or. L1 >= ::nHeight
+	::cError := "Invalid Target Line -- Out Of Image Area"
+	Return .F.
+ElseIf C1 < 0 .or. C1 >= ::nWidth
+	::cError := "Invalid Target Column -- Out Of Image Area"
+	Return .F.
+Endif
+                       
+// Plota a imagem da area de transferencia
+// Validando as coordenadas de colagem caso 
+// a imagem colada nas coordenadas saia 
+// "fora" da área total da imagem 
+For nL := 0 to len(::aTrans)-1
+	IF L1+nL < ::nHeight
+		For nC := 0 to len(::aTrans[nL+1])-1
+			If C1+nC < ::nWidth
+				::aMatrix[L1+nL+1][C1+nC+1] := ::aTrans[nL+1][nC+1]
+			Else
+				EXIT
+			Endif
+		Next
+	Else
+		EXIT
+	Endif
+Next
+
+Return .T. 
+
+// Salva a imagem em disco como JPEG
+METHOD SaveToJPG(cJpgFile)         CLASS ZBITMAP
+Local cTmpFile := "\tmpbitmap.bmp"
+
+If file(cTmpFile)
+	Ferase(cTmpFile)
+Endif
+
+::SaveToBMP(cTmpFile)
+
+nRet := BMPTOJPG(cTmpFile,cJpgFile)
+
+conout(nRet)
 
 Return
 
