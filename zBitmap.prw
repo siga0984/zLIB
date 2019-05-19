@@ -25,6 +25,7 @@ CLASS ZBITMAP FROM LONGNAMECLASS
     DATA nBPP          // Bits por Pixel ( 1,4,...)
     DATA cERROR        // String com ultima ocorrencia de erro da classe         
     DATA aMatrix       // Matrix de pontos do Bitmap ( cores ) 
+    DATA aColors       // Tabela de cores do Bitmap
     DATA cFormat       // Identificador do formato do arquivo 
     DATA nOffSet       // Offset de inico dos dados 
     DATA nRawData      // Tamanho dos dados 
@@ -84,6 +85,8 @@ If nBPP = NIL
 Else
 	::nBPP := nBPP
 Endif
+
+::aColors := GetColorTab(nBPP)
 
 ::cFileName := ''
 ::nPenSize  := 1               
@@ -326,10 +329,6 @@ IF nRow < 1 .or. nRow > ::nHeight
 	return
 ElseIF nCol < 1 .or. nCol > ::nWidth
 	return
-ElseIF nRow - nPen < 1 .or. nRow + nPen >  ::nHeight
-	return
-ElseIF nCol - nPen < 1 .or. nCol + nPen > ::nWidth
-	return
 Endif
 
 ::aMatrix[nRow][nCol] := nColor
@@ -385,27 +384,16 @@ Return ::nBgColor
 
 // --------------------------------------------------------
 // Faz o "negativo" da imagem 
-// Por hora, imagem preta e branca, apenas inverte as cores
+// Recalcula as cores complementares da tabela de cores
 
 METHOD Negative()  CLASS ZBITMAP
-Local nL, nC
-If ::aMatrix != NIL            
-	IF ::nBPP = 1	
-		// Imagem monocromatica
-		For nL := 1 to ::nHeight
-			For nC := 1 to ::nWidth
-				::aMatrix[nL][nC] := 1-::aMatrix[nL][nC]
-			Next
-		Next
-	ElseIf ::nBPP = 4
-		// Imagem de 16 cores
-	    UserException("TODO")
-	Else
-	    UserException("TODO")
-	Endif
-Endif
+Local nI
+For nI := 1 to len(::aColors)
+	::aColors[nI][1] := 255-::aColors[nI][1]
+	::aColors[nI][2] := 255-::aColors[nI][2]
+	::aColors[nI][3] := 255-::aColors[nI][3]
+Next
 Return
-
 
 // ---------------------------------------------------
 // Salva o arquivo em disco                           
@@ -414,7 +402,6 @@ METHOD SaveToFile(cFile)  CLASS ZBITMAP
 Local nH, nI
 Local cHeader := ''
 Local cHeadInfo := ''
-Local aColors
 
 If ::nBPP <> 1	.and. ::nBPP <> 4
 	UserException("Format not implemented (yet) to save")
@@ -445,29 +432,17 @@ cHeadInfo += L2bin(::nImpColors)   // Important Colors
 
 // Até aqui o Header ocupou 54 bytes
 
-IF ::nBPP = 1
+// BMP Monocromatico 
+// Para o Offset 62, ainda faltam 8 bytes 
+// a tabela de cores tem apenas duas entradas, preto e branco 
 
-	// BMP Monocromatico 
-	// Para o Offset 62, ainda faltam 8 bytes 
-	// a tabela de cores tem apenas duas entradas, preto e branco 
+// BMP de 16 cores
+// Até o offset 118 sao 64 bytes
+// Tabela de Cores em BGRA - ( Blue Green Red Alpha ) 4 bytes por cor
 
-	aColors := GetColorTab(1)
-	For nI := 1 to len(aColors)
-		cHeadInfo += chr(aColors[nI][1])+chr(aColors[nI][2])+chr(aColors[nI][3])+chr(aColors[nI][4])
-	Next
-
-ElseIf ::nBPP = 4
-
-   // BMP de 16 cores
-   // Até o offset 118 sao 64 bytes 
-   // Tabela de Cores em BGRA - ( Blue Green Red Alpha ) 4 bytes por cor 
-
-	aColors := GetColorTab(4)
-	For nI := 1 to len(aColors)
-		cHeadInfo += chr(aColors[nI][1])+chr(aColors[nI][2])+chr(aColors[nI][3])+chr(aColors[nI][4])
-	Next
-
-Endif
+For nI := 1 to len(::aColors)
+	cHeadInfo += chr(::aColors[nI][1])+chr(::aColors[nI][2])+chr(::aColors[nI][3])+chr(::aColors[nI][4])
+Next
 
 fWrite(nH,cHeadInfo,len(cHeadInfo))
             
