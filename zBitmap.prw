@@ -111,6 +111,9 @@ ElseIf ::nBPP = 4
 ElseIf ::nBPP = 8
 	::nOffSet  := 1078
 	::nBgColor := 255 // Branco 
+ElseIf ::nBPP = 24
+	::nOffSet  := 54
+	::nBgColor := RGB(256,256,256)-1 // branco 
 Endif        
 aRow := {}
 
@@ -156,7 +159,7 @@ Local nReadOffset
 Local aRow := {}
 Local cBits      
 Local lTopDown := .F. 
-Local nPos, nRed, nGreen,nBlue,nAlpha
+Local nPos, nRed, nGreen,nBlue,nAlpha   
 
 ::cFileName := cFile
 
@@ -249,6 +252,9 @@ ElseIF ::nBPP = 4
 	nCores := 16
 ElseIF ::nBPP = 8
 	nCores := 256
+ElseIF ::nBPP = 24
+	// Nao tem tabela de cores 
+	nCores := 0
 Else	
 	UserException("Formato (ainda) nao suportado: "+cValToChar(::nBPP)+" BPP" )
 Endif
@@ -263,7 +269,7 @@ For nCor := 0 to nCores-1
 	
 	aadd(::aColors,{nBlue,nGreen,nRed,nAlpha})
 	
-	conout("aadd(::aColors,{"+cValToChaR(nBlue)+","+cValToChaR(nGreen)+","+cValToChaR(nRed)+","+cValToChaR(nAlpha)+"})")
+	//conout("aadd(::aColors,{"+cValToChaR(nBlue)+","+cValToChaR(nGreen)+","+cValToChaR(nRed)+","+cValToChaR(nAlpha)+"})")
 	
 	nPos += 4
 	
@@ -277,7 +283,7 @@ Next
 
 For nL := 0 to ::nHeight-1
 	nReadOffset := ::nOffSet + ( ::nRowSize * nL ) + 1
-	For nC := 0 to ::nWidth-1
+	For nC := 0 to ::nWidth-1 
 		nByte := asc(substr(cBuffer,nReadOffset,1))
 		If ::nBPP == 1 
 			// Bitmap monocromatico 
@@ -296,12 +302,22 @@ For nL := 0 to ::nHeight-1
 		ElseIf ::nBPP == 8
 			// Bitmap de 256 cores
 			// 1 pixels por byte
-			cBits := NTOBIT8(nByte) 
-			aadd(aRow, BITSTON(cBits))
+			aadd(aRow, nByte)
+		ElseIf ::nBPP == 24
+			// Bitmap de 256*256*256 cores
+			// 1 pixel a cada 3 bytes
+			nBlue := asc(substr(cBuffer,nReadOffset,1))
+			nGreen := asc(substr(cBuffer,nReadOffset+1,1))
+			nRed := asc(substr(cBuffer,nReadOffset+2,1))
+			aadd(aRow, RGB(nRed,nGreen,nBlue) )
 		Else
 			UserException("Unsupported ("+cValToChar(::nBPP)+") Bytes per Pixel")
 		Endif
-		nReadOffset++
+		If ::nBPP == 24
+			nReadOffset += 3 
+		Else
+			nReadOffset += 1
+		Endif
 	Next
 	aSize(aRow,::nWidth)
 	If lTopDown
@@ -453,11 +469,37 @@ Return ::nBgColor
 
 METHOD Negative()  CLASS ZBITMAP
 Local nI
-For nI := 1 to len(::aColors)
-	::aColors[nI][1] := 255-::aColors[nI][1]
-	::aColors[nI][2] := 255-::aColors[nI][2]
-	::aColors[nI][3] := 255-::aColors[nI][3]
-Next
+Local nL , nC
+Local nRed := 0
+Local nGreen := 0
+Local nBlue := 0
+
+If ::nBPP < 24
+	
+	// Formatos menores que True Color, altera a tabela de cores
+	
+	For nI := 1 to len(::aColors)
+		::aColors[nI][1] := 255-::aColors[nI][1]
+		::aColors[nI][2] := 255-::aColors[nI][2]
+		::aColors[nI][3] := 255-::aColors[nI][3]
+	Next
+	
+Else
+	
+	// Imagem True Color, inverte as cores ponto a ponto                      
+	
+	For nL := 1 to ::nHeight
+		For nC := 1 to ::nWidth
+			RGB2Dec(::aMatrix[nL][nC],@nRed,@nGreen,@nBlue)
+			nRed := 255 - nRed
+			nGreen := 255 - nGreen
+			nBlue := 255 - nBlue
+			::aMatrix[nL][nC] := RGB(nRed,nGreen,nBlue)
+		Next
+	Next
+	
+Endif
+
 Return
 
 // ---------------------------------------------------
@@ -468,7 +510,7 @@ Local nH, nI
 Local cHeader := ''
 Local cHeadInfo := ''
 
-If ::nBPP <> 1	.and. ::nBPP <> 4 .and. ::nBPP <> 8
+If ::nBPP <> 1	.and. ::nBPP <> 4 .and. ::nBPP <> 8 .and. ::nBPP <> 24
 	UserException("Format not implemented (yet) to save")
 Endif
 
@@ -586,8 +628,31 @@ ElseIf ::nBPP == 8
 	Next
 	
 
+ElseIf ::nBPP == 24
+
+	// Gravação de imagem True Color 24 bits
+	// 3 bytes por pixel 
+
+	For nL := ::nHeight to 1 STEP -1
+		cBinRow := ''
+		For nC := 1 to ::nWidth 
+			nRed := 0 
+			nGreen := 0 
+			nBlue := 0 
+			RGB2Dec(::aMatrix[nL][nC],@nRed,@nGreen,@nBlue)
+			cBinRow += ( chr(nBlue)+chr(nGreen)+chr(nRed) )
+		Next
+		while len(cBinRow) < ::nRowSize
+			// Padding Bytes ( ASCII 0 )
+			cBinRow += Chr(0)
+		Enddo
+		// Grava os bytes da linha no arquivo
+		fWrite(nH,cBinRow)
+	Next
+
 Else
-	UserException("TODO")
+
+	// UserException("TODO")
 	
 Endif
 fClose(nH)
@@ -1010,7 +1075,12 @@ ElseIf nBPP = 8
 	aadd(aColors,{255,0,255,0})
 	aadd(aColors,{255,255,0,0})
 	aadd(aColors,{255,255,255,0})
+
+ElseIf nBPP = 24
 	
+	// Paleta de Cores Padrao ( 24 Bits True Color )	
+	// NAO TEM TABELA DE CORES 
+		
 Endif
 
 Return aColors
@@ -1307,3 +1377,12 @@ conout(nRet)
 Return
 
 
+// ( <nRed> + ( <nGreen> * 256 ) + ( <nBlue> * 65536 ) )
+
+Static Function RGB2Dec(nColor,nRed,nGreen,nBlue)
+Local cBitColor := NTOBITS(nColor)
+cBitColor := padl(cBitColor,24,'0')
+BIT8TON(substr(cBitColor,1,8),@nBlue)
+BIT8TON(substr(cBitColor,9,8),@nGreen)
+BIT8TON(substr(cBitColor,17,8),@nRed)
+Return
