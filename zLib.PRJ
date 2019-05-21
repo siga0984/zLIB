@@ -1,0 +1,137 @@
+Group zLib
+   Version=7.0
+   VSSDB=
+   HasProperties=1
+   Properties
+      BeforeApply=
+      AfterApply=
+      Icon=
+      ID=
+      Version=
+      PalmName=
+      OutPut=
+   End
+   ProjectsCount=1
+   Project zLib
+      FoldersCount=2
+      Folder Fontes
+         VSSPath=Fontes
+         FilesCount=33
+         File \Projetos\zLib\zApp.prw
+             Type=T
+         End
+         File \Projetos\zLib\zCombine.prw
+             Type=T
+         End
+         File \Projetos\zLib\zDBAccess.prw
+             Type=T
+         End
+         File \Projetos\zLib\zDBFFile.prw
+             Type=T
+         End
+         File \Projetos\zLib\zDBTFile.prw
+             Type=T
+         End
+         File \Projetos\zLib\zFieldDef.prw
+             Type=T
+         End
+         File \Projetos\zLib\zFPTFile.prw
+             Type=T
+         End
+         File \Projetos\zLib\zISAMFile.prw
+             Type=T
+         End
+         File \Projetos\zLib\zLibDateTime.prw
+             Type=T
+         End
+         File \Projetos\zLib\zLibDec2Hex.prw
+             Type=T
+         End
+         File \Projetos\zLib\zLibEnv.prw
+             Type=T
+         End
+         File \Projetos\zLib\zLibMath.prw
+             Type=T
+         End
+         File \Projetos\zLib\zLibNBin.prw
+             Type=T
+         End
+         File \Projetos\zLib\zLibRandomic.prw
+             Type=T
+         End
+         File \Projetos\zLib\zLibRPC.prw
+             Type=T
+         End
+         File \Projetos\zLib\zLibStr2HexDmp.prw
+             Type=T
+         End
+         File \Projetos\zLib\zLibZCompare.prw
+             Type=T
+         End
+         File \Projetos\zLib\zLogger.prw
+             Type=T
+         End
+         File \Projetos\zLib\zMemCached.prw
+             Type=T
+         End
+         File \Projetos\zLib\zMemCachedPool.prw
+             Type=T
+         End
+         File \Projetos\zLib\zMEMFile.prw
+             Type=T
+         End
+         File \Projetos\zLib\zMEMIndex.prw
+             Type=T
+         End
+         File \Projetos\zLib\zMVCControl.prw
+             Type=T
+         End
+         File \Projetos\zLib\zMVCModel.prw
+             Type=T
+         End
+         File \Projetos\zLib\zMVCView.prw
+             Type=T
+         End
+         File \Projetos\zLib\zQueryFile.prw
+             Type=T
+         End
+         File \Projetos\zLib\zReadTxt.prw
+             Type=T
+         End
+         File \Projetos\zLib\zShieldRpc.prw
+             Type=T
+         End
+         File \Projetos\zLib\zSmartApp.prw
+             Type=T
+         End
+         File \Projetos\zLib\zStream.prw
+             Type=T
+         End
+         File \Projetos\zLib\zTableDef.prw
+             Type=T
+         End
+         File \Projetos\zLib\zTopFile.prw
+             Type=T
+         End
+         File \Projetos\zLib\zWorkJob.prw
+             Type=T
+         End
+      End
+      Folder Imagens
+         VSSPath=Nova Pasta2
+         FilesCount=2
+         File \Projetos\zLib\zlib_lupa_32.png
+             Type=I
+         End
+         File \Projetos\zLib\zlib_web_32.png
+             Type=I
+         End
+      End
+   End
+   BatchBuild_Item0=Fontes · ADVPLTESTS_TOP_ADS
+   BatchBuild_Item1=Fontes · ADVPLTESTS_ADS_ADS
+   BatchBuild_Item2=Fontes · ADVPLTESTS_CTREE_CTREE
+   BatchBuild_Item3=Fontes · ADVPLTESTS_BTV_BTV
+   BatchBuild_Item4=Fontes · ADVPLTESTS_TOP_CTREE
+   BatchBuild_Item5=Fontes · ADVPLTESTS_DBF_ADS
+End
