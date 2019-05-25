@@ -1,10 +1,6 @@
 #include 'protheus.ch'
 #include 'zlib.ch'
 
-#DEFINE PI 3.14159265 // ACos(-1)
-
-#TRANSLATE ZSWAP( <X> , <Y> , <S> ) =>  ( <S> := <X> , <X> := <Y> , <Y> := <S> )
-
 /* ===========================================================================
 
 Classe		ZBITMAP
@@ -24,7 +20,7 @@ CLASS ZBITMAP FROM LONGNAMECLASS
     DATA nFileSize     // Tamanho em bytes total do arquivo
     DATA nHeight       // Altura da imagem em pixels
     DATA nWidth        // largura da imagem em pixels
-    DATA nBPP          // Bits por Pixel ( 1,4,...)
+    DATA nBPP          // Bits por Pixel ( 1,4,8,24 )
     DATA cERROR        // String com ultima ocorrencia de erro da classe         
     DATA aMatrix       // Matrix de pontos do Bitmap ( cores ) 
     DATA aTrans        // Area interna de transferencia
@@ -633,6 +629,8 @@ ElseIf ::nBPP == 24
 	// Gravação de imagem True Color 24 bits
 	// 3 bytes por pixel 
 
+	nTimer := seconds()
+
 	For nL := ::nHeight to 1 STEP -1
 		cBinRow := ''
 		For nC := 1 to ::nWidth 
@@ -649,6 +647,8 @@ ElseIf ::nBPP == 24
 		// Grava os bytes da linha no arquivo
 		fWrite(nH,cBinRow)
 	Next
+
+    conout(seconds()-nTimer)
 
 Else
 
@@ -671,7 +671,7 @@ If nPen = NIL
 	nPen := ::nPenSize
 Endif
 
-For nPen := 0 to nPen-1
+For nPen := 0 to nPen
 
 	// Espessura de linha de retangulo sempre 
 	// para a área interna do Retangulo 
@@ -1377,12 +1377,13 @@ conout(nRet)
 Return
 
 
+// Converte uma cor de decimal para RGB
 // ( <nRed> + ( <nGreen> * 256 ) + ( <nBlue> * 65536 ) )
 
 Static Function RGB2Dec(nColor,nRed,nGreen,nBlue)
-Local cBitColor := NTOBITS(nColor)
-cBitColor := padl(cBitColor,24,'0')
+Local cBitColor := padl(NTOBITS(nColor),24,'0')
 BIT8TON(substr(cBitColor,1,8),@nBlue)
 BIT8TON(substr(cBitColor,9,8),@nGreen)
 BIT8TON(substr(cBitColor,17,8),@nRed)
 Return
+

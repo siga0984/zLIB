@@ -137,7 +137,7 @@ STATIC Function NTOBIT8(nI)
 Return _Bits[nI+1]
 
 // Converte um numero entre 0 e 65535 
-// para uma strin binaria de 16 bytes contendo "0" e "1"
+// para uma string binaria de 16 bytes contendo "0" e "1"
 STATIC Function NTOBIT16(nI)
 Local n1,n2
 If nI > 255
@@ -149,12 +149,12 @@ Else
 Endif  
 Return _Bits[n1+1]+_Bits[n2+1]
 
-// Converte qualquer numero deciml de até 14 digitos ineiros 
+// Converte qualquer numero deciml de até 14 digitos inteiros 
 // do AdvPL para formato binario em blocos de 8 bits 
 STATIC Function NTOBITS(nI)
 Local nTmp
 Local cBitsRet  := ''
-While nI > 256  
+While nI >= 256  
 	nTmp := nI % 256
 	cBitsRet := _Bits[nTmp+1] + cBitsRet
 	nI := ( nI - nTmp ) / 256
@@ -465,6 +465,11 @@ AADD(aBits,'11111111')
 
 Return aBits
 
+// ----------------------------------------
+// Montagem do cache interno com HASH 
+// para conversão de números decimais de 0 a 255
+// em string binária de 8 bits, e vice-versa
+
 STATIC _BitHash := BuildBitHash()
 
 STATIC Function BuildBitHash()
@@ -475,6 +480,10 @@ For nI := 0 to 255
 Next
 Return _BitHash
 
-
+                       
+// ----------------------------------------
+// Conversão optimizada de uma sequencia de 
+// string de 8 bits para numérico 
 STATIC Function BIT8TON(cStrBit,nNum)
 Return HMGET( _BitHash,cStrBit,@nNum)
+                                                          
