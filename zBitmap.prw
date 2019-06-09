@@ -664,7 +664,7 @@ Return .T.
 // Cor e espessura sao opcionais
 // Espessura > 1 , preenche a área interna do retängulo 
 
-METHOD Rectangle(L1,C1,L2,C2,nColor,nPen)  CLASS ZBITMAP
+METHOD Rectangle(L1,C1,L2,C2,nColor,nPen,nFill)  CLASS ZBITMAP
 Local nL , nC
 
 If nPen = NIL 
@@ -687,6 +687,15 @@ For nPen := 0 to nPen
 		::SetPixel(nL,C1+nPen,nColor,1)
 		::SetPixel(nL,C2-nPen,nColor,1)
 	Next
+	
+	IF nFill != NIL 
+		// Retangulo com preenchimento
+		For nL := L1+nPen to L2-nPen
+			For nC := C1+nPen+1 to C2-nPen-1
+				::SetPixel(nL,nC,nFill,1)
+			Next
+		Next	
+	Endif
 	
 Next
 
