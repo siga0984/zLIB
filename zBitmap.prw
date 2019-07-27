@@ -42,7 +42,8 @@ CLASS ZBITMAP FROM LONGNAMECLASS
     DATA nPenSize      // Grossura da "caneta" de desenho ( default=1 ) 
     
     METHOD New()           // Cria uma imagem vazia 
-    METHOD LoadFromFile()  // Le imagem de arquivo 
+    METHOD LoadFromFile()  // Le imagem de um arquivo BMP
+    METHOD LoadFromPNG()   // Le imagem de um arquivo PNG
     METHOD GetErrorStr()   // Recupera ultimo erro da classe
     METHOD Clear()         // Limpa a imagem ( preenche com a cor de fundo ) ou uma parte dela  
     METHOD SetPixel()      // Seta a cor de um ponto 
@@ -146,7 +147,7 @@ Return self
 
 METHOD LOADFROMFILE(cFile)  CLASS ZBITMAP
 Local nH
-Local cBuffer
+Local cBuffer := ''
 Local cBinSize  
 Local nBmpSize
 Local nL , nC, nI
@@ -178,7 +179,6 @@ Endif
 // para arquivos maiores que 1MB, aumentar o tamanho 
 // máximo de string no AdvPL -- MaxStringSize
 
-cBuffer := space(::nFileSize) 
 fRead(nH,@cBuffer,::nFileSize)
 fClose(nH)
 
@@ -330,6 +330,212 @@ For nL := 0 to ::nHeight-1
 Next
 
 Return .T.
+
+
+#define PNG_WIDTH			1
+#define PNG_HEIGHT			2
+#define PNG_BIT_DEPHT       3
+#define PNG_COLOR_TYPE      4
+#define PNG_COMPRESSION     5
+#define PNG_FILTER          6
+#define PNG_INTERLACE       7
+#define PNG_SRGB            8
+#define PNG_GAMA            9
+#define PNG_PIXELPERUNIT_X  10
+#define PNG_PIXELPERUNIT_Y  11
+#define PNG_PIXEL_UNIT      12
+#define PNG_PALLETE         13
+#define PNG_IMAGEDATA       14
+
+#define PNG_HEADER 		chr(137)+chr(80)+chr(78)+chr(71)+chr(13)+chr(10)+chr(26)+chr(10)
+
+METHOD LoadFromPNG(cFile) CLASS ZBITMAP
+Local nH,cBuffer := ''
+Local aPng := Array(14)
+Local iTam , cData , nCRC // Dados do Chunk
+Local cBufferOut := ''
+Local nLenghtOut 
+Local nColSize , cRowBuffer
+Local nColPos,cBits
+Local nL , nC
+Local aRow := {}
+
+::cFileName := cFile
+
+nH := fopen(cFile)
+
+IF nH == -1
+	::cError := "File Open Error - FERROR = "+cValToChar(Ferror())
+	Return .F.
+Endif
+
+// Determina o tamanho e le o arquivo inteiro 
+::nFileSize := fSeek(nH,0,2)
+fSeek(nH,0)
+fREad(nH,@cBuffer,::nFileSize)
+fClose(nH)
+
+IF !(Left(cBuffer,8) == PNG_HEADER )
+	::cError := "File is NOT A PNG"
+	Return .F.
+Endif
+
+// Corta o header fora
+cBuffer := substr(cBuffer,9)
+             
+// Varre o resto do buffer 
+while len(cBuffer) > 0
+	
+	// Tamanho dos dados do chunk
+	iTam := Bin4toN(left(cBuffer,4))
+	cBuffer := substr(cBuffer,5)
+	
+	// Tipo do Chunk
+	cType := left(cBuffer,4)
+	cBuffer := substr(cBuffer,5)
+	conout("Chuck Type ... " + cType)
+	
+	If iTam > 0
+		cData := left(cBuffer,iTam)
+		cBuffer := substr(cBuffer,iTam+1)
+	Else
+		cData := ''
+	Endif
+	
+	nCRC := Bin4toN(left(cBuffer,4))
+	cBuffer := substr(cBuffer,5)
+
+	nChkCRC := PNGCRC(cType+cData)
+
+	If Upper(cType) == 'IHDR'
+		
+		/*
+		Width:              4 bytes
+		Height:             4 bytes
+		Bit depth:          1 byte
+		Color type:         1 byte
+		Compression method: 1 byte
+		Filter method:      1 byte
+		Interlace method:   1 byte
+		*/
+		       
+		aPng[PNG_WIDTH]        := Bin4toN(substr(cData,1,4))
+		aPng[PNG_HEIGHT]       := Bin4toN(substr(cData,5,4))
+		aPng[PNG_BIT_DEPHT]    := asc(substr(cData,9,1))
+		aPng[PNG_COLOR_TYPE]   := asc(substr(cData,10,1))
+		aPng[PNG_COMPRESSION]  := asc(substr(cData,11,1))
+		aPng[PNG_FILTER]       := asc(substr(cData,12,1))
+		aPng[PNG_INTERLACE]    := asc(substr(cData,13,1))
+
+		// Por enqianto aproveita apenas comprimento e altura
+		::nWidth := aPng[PNG_WIDTH]
+		::nHeight := aPng[PNG_HEIGHT]
+
+		
+	ElseIF Upper(cType) == 'SRGB'
+		
+		/*
+		0: Perceptual
+		1: Relative colorimetric
+		2: Saturation
+		3: Absolute colorimetric
+		*/
+		
+		aPNG[PNG_SRGB] := asc(substr(cData,1,1))
+		
+	ElseIF Upper(cType) == 'GAMA'
+
+		// The value is encoded as a 4-byte unsigned integer, representing gamma times 100000.
+		// For example, a gamma of 1/2.2 would be stored as 45455.
+		aPng[PNG_GAMA] := Bin4toN(substr(cData,1,4))
+
+	ElseIF Upper(cType) == 'PLTE'
+
+		// Paleta de cores sequencias de 3 bytes  RGB
+                     
+		::aColors := {}
+		aPng[PNG_PALLETE] := {}
+
+		While len(cData) > 0 	
+			nRed := asc(substr(cData,1,1))
+			nGreen := asc(substr(cData,2,1))
+			nBlue := asc(substr(cData,3,1))
+		    cData := substr(cData,4)
+		    aadd( aPng[PNG_PALLETE] , {nRed,nGreen,nBlue} )
+		    
+		    // Paleta do BITMAP : BGRA
+		    aadd(::aColors,{nBlue,nGreen,nRed,0}) // BGRA
+
+		Enddo
+
+	ElseIF Upper(cType) == 'PHYS'
+
+		/*
+		Pixels per unit, X axis: 4 bytes (unsigned integer)
+		Pixels per unit, Y axis: 4 bytes (unsigned integer)
+		Unit specifier:          1 byte
+		*/
+
+		aPng[PNG_PIXELPERUNIT_X] := Bin4toN(substr(cData,1,4))
+		aPng[PNG_PIXELPERUNIT_Y] := Bin4toN(substr(cData,5,4))
+		aPng[PNG_PIXEL_UNIT]     := asc(substr(cData,9,1))
+		
+		
+	ElseIF Upper(cType) == 'IDAT'
+
+		// por hora chumbado monocromatico 
+		::nBPP := 1   
+		::nBgColor := 1
+
+		cBufferOut := ''
+		nLenghtOut := 32*1024
+		UnCompress( @cBufferOut ,  @nLenghtOut , cData, len(cData)  )
+		
+		nColSize := nLenghtOut / aPng[PNG_HEIGHT]
+		
+		// Inicializa BMP com fundo branco
+		::aMatrix := {}
+		For nC := 1 to ::nWidth
+			aadd(aRow,::nBgColor)
+		Next
+		For nL := 1 to ::nHeight
+			aadd(::aMatrix,aClone(aRow))
+		Next
+		
+		// Mastiga o buffer binario alimentando a matrix do Bitmap
+		For nL := 1 to 	aPng[PNG_HEIGHT]
+			cRowBuffer := substr(cBufferOut,1,nColSize)
+			cBufferOut := substr(cBufferOut,nColSize+1)
+			nColPos := 1
+			For nC := 2 to nColSize
+				cBits := NTOBIT8( asc(substr(cRowBuffer,nC,1)) )
+				While len(cBits) > 0
+					IF nColPos < aPng[PNG_WIDTH]
+						::aMatrix[nL,nColPos] := val(left(cBits,1))
+					Endif
+					nColPos++
+					cBits := substr(cBits,2)
+				Enddo
+			Next
+		Next
+		
+	ElseIF Upper(cType) == 'IEND'
+
+		// Fim do arquivo 
+		EXIT
+		
+	Else
+
+		Conout("WARNING - LoadFromPNG - Ignored Chunk ["+cType+"]")
+
+	Endif
+	
+Enddo
+
+Return .T. 
+
+
+
 
 // Recupera a última informação de erro da Classe
 
@@ -1395,4 +1601,42 @@ BIT8TON(substr(cBitColor,1,8),@nBlue)
 BIT8TON(substr(cBitColor,9,8),@nGreen)
 BIT8TON(substr(cBitColor,17,8),@nRed)
 Return
+
+
+// PNG
+// Cálculo de CRC dos Chunks do PNG 
+// Tabela pré-calculada para geração do CRC
+
+STATIC aCRCTable := CRCTable()
+
+STATIC Function CRCTable()
+Local aTable := {}
+Local nI, nJ , C
+For nI := 0 to 255
+	C := nI
+	For nJ := 0 to 7
+		IF nAnd(C,1)
+			C := nXor( 3988292384 , Int( C / 2 ) )
+		Else 
+			C := Int( C / 2 )
+		Endif
+	Next
+	aadd(aTable,C)
+Next
+Return aTable
+
+// PNG
+// Cálculo do CRC sobre um buffer ( Type + Data ) 
+
+STATIC Function PNGCRC(cBuffer)
+Local C := 4294967295 // 0xFFFFFFFF
+Local nI , nIndex
+
+For nI := 1 to len(cBuffer)
+	nASC := asc(substr(cBuffer,nI,1))
+	nIndex := nAnd ( nXor( C , nASC ) , 255 ) // oxFF
+	C := nXor ( aCRCTable[nIndex+1] , INT( C / 256)  )  // C >> 8 
+Next
+
+Return nXor( C , 4294967295 ) // 0xFFFFFFFF
 
