@@ -12,6 +12,8 @@ Leitura e edição de Bitmap monocromatico em AdvPL
 Referencia do formato do arquivo 
 https://en.wikipedia.org/wiki/BMP_file_format
 
+Release 20190727   Metodo LoadFromPNG()
+
 =========================================================================== */
 
 CLASS ZBITMAP FROM LONGNAMECLASS
@@ -23,8 +25,8 @@ CLASS ZBITMAP FROM LONGNAMECLASS
     DATA nBPP          // Bits por Pixel ( 1,4,8,24 )
     DATA cERROR        // String com ultima ocorrencia de erro da classe         
     DATA aMatrix       // Matrix de pontos do Bitmap ( cores ) 
-    DATA aTrans        // Area interna de transferencia
-    DATA aColors       // Tabela de cores do Bitmap
+    DATA aClipBoard        // Area interna de transferencia
+    DATA aColors       // Tabela de cores do Bitmap ( BGRA ) 
     DATA cFormat       // Identificador do formato do arquivo 
     DATA nOffSet       // Offset de inico dos dados 
     DATA nRawData      // Tamanho dos dados 
@@ -52,6 +54,7 @@ CLASS ZBITMAP FROM LONGNAMECLASS
     METHOD Negative()      // Inverte as cores da imagem ( = Negativo ) 
     METHOD SaveToBMP()     // Salva a imagem em disco como Bitmap
     METHOD SaveToJPG()     // Salva a imagem em disco como JPEG
+    METHOD SaveToPNG()     // Salva a imagem em disco como PNG
     METHOD Rectangle()     // Desenha um retângulo na imagem
     METHOD Line()          // Desenha uma linha na imagem entre dois pontos
     METHOD Circle()        // Desenha um círculo 
@@ -393,7 +396,6 @@ while len(cBuffer) > 0
 	// Tipo do Chunk
 	cType := left(cBuffer,4)
 	cBuffer := substr(cBuffer,5)
-	conout("Chuck Type ... " + cType)
 	
 	If iTam > 0
 		cData := left(cBuffer,iTam)
@@ -864,6 +866,99 @@ Endif
 fClose(nH)
 
 Return .T.
+
+// ---------------------------------------------------
+// Salva a imagem em disco como PNG 
+// Por hora suporte apenas monocromatico
+
+METHOD SaveToPNG(cFile)    CLASS ZBITMAP
+Local aPng := Array(14)
+Local nH
+Local nI, nL , nC
+Local cBuffer , nDataSize , cData , cBits, nByte
+
+aPng[PNG_WIDTH]             := ::nWidth
+aPng[PNG_HEIGHT]            := ::nHeight
+aPng[PNG_BIT_DEPHT]         := 1
+aPng[PNG_COLOR_TYPE]        := 3
+aPng[PNG_COMPRESSION]       := 0
+aPng[PNG_FILTER]            := 0
+aPng[PNG_INTERLACE]         := 0 
+aPng[PNG_SRGB]              := 0
+aPng[PNG_GAMA]              := 45455
+aPng[PNG_PIXELPERUNIT_X]    := 4724
+aPng[PNG_PIXELPERUNIT_Y]    := 4724
+aPng[PNG_PIXEL_UNIT]        := 1
+
+nH := fCreate(cFile)
+
+If nH == -1
+	::cError := "File Create Error - FERROR = "+cValToChar(ferror())
+	Return .F.
+Endif 
+
+// Inicia com o header PNG
+fWrite(nH , PNG_HEADER)
+
+// Monta o Chunk IHDR 13 bytes
+
+cData := ''
+cData += nToBin4(aPng[PNG_WIDTH])
+cData += nToBin4(aPng[PNG_HEIGHT])
+cData += chr(aPng[PNG_BIT_DEPHT])
+cData += chr(aPng[PNG_COLOR_TYPE])
+cData += chr(aPng[PNG_COMPRESSION])
+cData += chr(aPng[PNG_FILTER])
+cData += chr(aPng[PNG_INTERLACE])
+
+PNGSaveChunk(nH,"IHDR",cData)
+
+// Monta o Chunk PLTE
+
+cData := ''
+For nI := 1 to len(::aColors)
+	// Monta o Chucn RGB partindo da matriz BGRA 
+	cData += chr(::aColors[nI][3]) + Chr(::aColors[nI][2]) + chr(::aColors[nI][1]) 
+NExt
+
+PNGSaveChunk(nH,"PLTE",cData)
+
+// Monta o chunk IDAT -- por enquanto apenas um 
+
+cBuffer := ''
+For nL := 1 to ::nHeight
+	cBits := '00000000'
+	For nC := 1 to ::nWidth
+		cBits += STR(::aMAtrix[nL][nC],1)
+	Next
+	while len(cBits)%8 > 0 
+		cBits += '1'
+	Enddo  
+	while !empty(cBits)        
+		BIT8TON(substr(cBits,1,8),nByte)
+		cBuffer += chr(nByte)
+		cBits := substr(cBits,9)
+	Enddo	
+Next
+
+// Comprime o buffer 
+cData := ''
+nDataSize := 0
+compress(@cData,@nDataSize,cBuffer,len(cBuffer))
+
+// Salva o buffer comprimido 
+PNGSaveChunk(nH,"IDAT",cData)
+
+// Salva o final da imagem
+
+PNGSaveChunk(nH,"IEND","")
+
+fClose(nH)
+
+Return .T. 
+
+
+
 
 // ---------------------------------------------------
 // Desenha um retängulo na cor e espessura especificadas
@@ -1498,7 +1593,7 @@ Local aRow := {}
 
 IF pCount() == 0
 	// Copia a imagem inteira para a area de transferencia
-	::aTrans := aClone(::aMatrix)
+	::aClipBoard := aClone(::aMatrix)
     Return .T.
 Endif
 
@@ -1523,14 +1618,14 @@ ElseIf C1 > C2
 	Return .F.
 Endif
 
-::aTrans := {}
+::aClipBoard := {}
 
 // Copia a área informada para a area de transferencia interna
 For nL := L1+1 to L2+1
 	For nC := C1+1 to C2+1
 		aadd(aRow,::aMatrix[nL][nC])
 	Next
-	aadd(::aTrans,aClone(aRow))
+	aadd(::aClipBoard,aClone(aRow))
 	aSize(aRow,0)
 Next
 
@@ -1543,7 +1638,7 @@ METHOD Paste(L1,C1)                CLASS ZBITMAP
 Local nL , nC
 
 // Valida a area de transferencis
-If empty(::aTrans)
+If empty(::aClipBoard)
 	::cError := "Empty Transfer Area"
 	Return .F.
 Endif
@@ -1561,11 +1656,11 @@ Endif
 // Validando as coordenadas de colagem caso 
 // a imagem colada nas coordenadas saia 
 // "fora" da área total da imagem 
-For nL := 0 to len(::aTrans)-1
+For nL := 0 to len(::aClipBoard)-1
 	IF L1+nL < ::nHeight
-		For nC := 0 to len(::aTrans[nL+1])-1
+		For nC := 0 to len(::aClipBoard[nL+1])-1
 			If C1+nC < ::nWidth
-				::aMatrix[L1+nL+1][C1+nC+1] := ::aTrans[nL+1][nC+1]
+				::aMatrix[L1+nL+1][C1+nC+1] := ::aClipBoard[nL+1][nC+1]
 			Else
 				EXIT
 			Endif
@@ -1577,7 +1672,11 @@ Next
 
 Return .T. 
 
+// ----------------------------------------------
 // Salva a imagem em disco como JPEG
+// NA verdade, por hora salva um BMP em um arquivo 
+// temporário e converte para JPEG :D
+
 METHOD SaveToJPG(cJpgFile)         CLASS ZBITMAP
 Local cTmpFile := "\tmpbitmap.bmp"
 
@@ -1587,7 +1686,8 @@ Endif
 
 ::SaveToBMP(cTmpFile)
 nRet := BMPTOJPG(cTmpFile,cJpgFile)
-conout(nRet)
+
+Ferase(cTmpFile)
 
 Return
 
@@ -1639,4 +1739,12 @@ For nI := 1 to len(cBuffer)
 Next
 
 Return nXor( C , 4294967295 ) // 0xFFFFFFFF
+
+
+STATIC Function PNGSaveChunk(nH , cType,cData)
+Local nSize :=  len(cData)
+Local nCRC := PNGCRC(cType+cData)
+fWrite( nH , nToBin4(nSize) + cType + cData + nToBin4(nCRC) )
+Return
+
 
