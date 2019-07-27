@@ -31,8 +31,8 @@ o byte com o bit de maior valor ( 0x41 ) vai no final da sequência. Logo, ele
 As funções nativas da linguagem AdvPL para conversão de valores inteiros de 16 bits ( 2 Bytes ) 
 e 32 Bits ( 4 Bytes ) entre os formatos numérico decimal e string binária são : 
 
-I2BBin e Bin2I -- Número 16 bits para string binária e vice-versa 
-L2BBin e Bin2L -- Número 32 bits para string binária e vice-versa 
+I2Bin e Bin2I -- Número 16 bits para string binária e vice-versa 
+L2Bin e Bin2L -- Número 32 bits para string binária e vice-versa 
 
 As funções nativas de conversão do ADvPL trabalham com a representação 
 binária em Little Endian. Já as funções de conversão feitas nesta lib 
@@ -62,27 +62,24 @@ Return
 
 
 // ------------------------------------------------------------
-// Converte buffer de 4 bytes ( 32 Bits ) no seu valor numerico  
+// Converte buffer de 4 bytes ( 32 Bits ) Big-Endian
+// ( high bit first ) no seu valor numerico  
 
 STATIC Function Bin4toN(cBin4)
 Local nByte1,nByte2,nByte3,nByte4
+Local nResult := 0
 
 nByte1 := asc(substr(cBin4,1,1))
 nByte2 := asc(substr(cBin4,2,1))
 nByte3 := asc(substr(cBin4,3,1))
 nByte4 := asc(substr(cBin4,4,1))
 
-If nByte3 > 0
-	nByte4 += ( nByte3 * 256 )
-Endif
-If nByte2 > 0
-	nByte4 += ( nByte2 * 65536 )
-Endif
-If nByte1 > 0
-	nByte4 += ( nByte1 * 16777216 )
-Endif
+nResult += ( nByte1 * 16777216 )
+nResult += ( nByte2 * 65536 )
+nResult += ( nByte3 * 256 )
+nResult += nByte4
 
-Return nByte4
+Return nResult
 
 
 // ------------------------------------------------------------
