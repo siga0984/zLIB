@@ -65,6 +65,7 @@ CLASS ZBITMAP FROM LONGNAMECLASS
     METHOD Cut()           // Copia uma parte da imagem para a área interna de transferencia e limpa a área da imagem
     METHOD Copy()          // Copia uma parte da imagem para a área interna de transferencia
     METHOD Paste()         // Plota a imagem da area interna de transferencia na coordenada indicada
+    METHOD Resize()        // Redimensiona BMP em percentual horizontal e vertical
 
 ENDCLASS
 
@@ -1690,6 +1691,77 @@ nRet := BMPTOJPG(cTmpFile,cJpgFile)
 Ferase(cTmpFile)
 
 Return
+
+
+METHOD Resize(nPctH, nPctV) CLASS ZBITMAP
+Local nNewWidth
+Local nNewHeight
+Local nNewX := 1
+Local nNewY := 1
+Local nOldX
+Local nOldY
+Local nStepNewX 
+Local nStepNewY
+Local nStepOldX
+Local nStepOldY
+Local oNewBMP
+
+If nPctH = 100 .and. nPctV = 100 
+	Return .T.
+Endif
+
+nNewWidth := ::nWidth * (nPctH / 100) 
+nNewHeight := ::nHeight * (nPctV / 100) 
+
+nStepOldX := ::nWidth / nNewWidth 
+nStepNewX := 1
+
+nStepOldY := ::nHeight / nNewHeight 
+nStepNewY := 1
+
+oNewBMP := zBitmap():New( nNewWidth , nNewHeight , ::nBPP )
+
+nNewX := 1
+nNewY := 1
+nOldX := 1 
+nOldY := 1 
+
+While int(nOldY) <= ::nHeight .and. int(nNewY) <= nNewHeight
+	nOldX := 1
+	nNewX := 1
+	While int(nOldX) <= ::nWidth .and. int(nNewX) <= nNewWidth
+		oNewBMP:aMatrix[nNewY][nNewX] := ::aMatrix[nOldY][nOldX]		
+		nOldX += nStepOldX
+		nNewX += nStepNewX
+	Enddo
+	nOldY += nStepOldY
+	nNewY += nStepNewY
+Enddo
+
+::nFileSize     := oNewBMP:nFileSize
+::nHeight       := oNewBMP:nHeight
+::nWidth        := oNewBMP:nWidth
+::aMatrix       := aClone(oNewBMP:aMatrix)
+::aClipBoard    := aClone(oNewBMP:aClipBoard)
+::aColors       := aClone(oNewBMP:aColors)
+::cFormat       := oNewBMP:cFormat
+::nOffSet       := oNewBMP:nOffSet
+::nRawData      := oNewBMP:nRawData
+::nRowSize      := oNewBMP:nRowSize
+::nHeadSize     := oNewBMP:nHeadSize
+::nCompress     := oNewBMP:nCompress
+::nColorPlanes  := oNewBMP:nColorPlanes
+::nHRes         := oNewBMP:nHRes
+::nVRes         := oNewBMP:nVRes
+::nColorPal     := oNewBMP:nColorPal
+::nImpColors    := oNewBMP:nImpColors
+::nFRColor      := oNewBMP:nFRColor
+::nBgColor      := oNewBMP:nBgColor
+
+freeobj(oNewBMP)
+
+Return .T. 
+
 
 
 // Converte uma cor de decimal para RGB
