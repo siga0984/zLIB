@@ -837,20 +837,22 @@ For nI := 1 to nCnt
 		cQuery += ' AND '
 	Endif
 	
-
-	cQuery += ::FieldName(nPos)
-	
 	IF cType = 'C'
 		IF lExact
+			cQuery += ::FieldName(nPos)
 			cQuery += " = '"+aRecord[nI][2]+"' "
 		Else
-			cQuery += " LIKE '%"+Alltrim(aRecord[nI][2])+"%' "
+			cQuery += " lower("+::FieldName(nPos)+") "
+			cQuery += " LIKE '"+Lower(Alltrim(aRecord[nI][2]))+"' "
 		Endif
 	ElseIF cType = 'D'
+		cQuery += ::FieldName(nPos)
 		cQuery += " = '"+DTOS(aRecord[nI][2])+"' "
 	ElseIF cType = 'N'
+		cQuery += ::FieldName(nPos)
 		cQuery += " = "+cValToChar(aRecord[nI][2])+" "
 	ElseIF cType = 'L'
+		cQuery += ::FieldName(nPos)
 		cQuery += " = '"+IIF(aRecord[nI][2],'T','F')+"' "
 	Endif
 	

@@ -133,7 +133,7 @@ Return NIL
 METHOD InitDBConn()  CLASS ZLIBENV
 Local oDBConn
 oDBConn  := ZDBACCESS():New()
-oDBConn:SETPOOL(.T. , "DB_POOL")
+// oDBConn:SETPOOL(.T. , "DB_POOL")
 ::SetObject("DBCONN",oDBConn)
 Return .T. 
 

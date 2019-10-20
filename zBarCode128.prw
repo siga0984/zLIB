@@ -10,7 +10,6 @@ Descrição	Permite gerar um Codigo de Barras Code 128
 
 ====================================================== */
 
-
 Class zBarCode128 FROM LONGNAMECLASS
 
   METHOD NEW()

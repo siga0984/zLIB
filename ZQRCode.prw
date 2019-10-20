@@ -110,10 +110,10 @@ IF nMode != NIL
 	// Modo informado como parametro
 	::nMode := nMode
 Else
-	// TODO - chumbado por enquando, alfanumerico 
+	// TODO - chumbado por enquando bytes 
 	// O Correto é verificar se a mensagem cabe dentro de um determnado 
 	// modo de codificacao ( numerico, alfa, bytes ) segundo o Error Correction definido
-	::nMode := 2
+	::nMode := 3
 Endif
 
 ::oLogger:Write("SETDATA","Data Mode ["+cValToChar(nMode)+"]")
@@ -559,6 +559,15 @@ Local nErrCW
 Local aQRErrData := {}
 Local aFinalData := {}
 Local nInt
+Local nBlocks1, nData1 
+Local nBlocks2, nData2 
+Local nTotData
+Local aBitsBlk := {}
+Local aGrupos,aErrors,nPosData
+Local nB
+Local cBitVinfo 
+Local aVinfoBL := {} // Boottom left 
+Local aVInfoTR := {} // Top Right
 
 If ::nVersion < 1
 	// Se até agora nao tinha a versão, escolhe 
@@ -643,6 +652,50 @@ If ::nVersion > 1
 	// Coloca os padroes de alinhamento no Grid
 	::PutAlign( aAlignPos , aAlignMask )
 	
+Endif
+
+If ::nVersion > 6
+
+	// Versao 7 em diante, reserva a área em volta do localizador 
+	// superior direito e inferior esquerdo para "Version Information"
+	
+	// Reserve the Version Information Area
+	// QR codes versions 7 and larger must contain two areas where version information bits are placed. 
+	// The areas are a 6x3 block above the bottom-left finder pattern and a 3x6 block to the left of the 
+	// top-right finder pattern. The following images show the locations of the reserved areas in blue.
+
+	cBitVinfo := GetVInfo(::nVersion)
+
+	aVinfoBL := {} // Boottom left 
+	aVInfoTR := {} // Top Right
+	
+	aadd(aVinfoBL,{00,03,06,09,12,15}) 
+	aadd(aVinfoBL,{01,04,07,10,13,16}) 
+	aadd(aVinfoBL,{02,05,08,11,14,17}) 
+	
+	aadd(aVinfoTR,{00,01,02})
+	aadd(aVinfoTR,{03,04,05})
+	aadd(aVinfoTR,{06,07,08})
+	aadd(aVinfoTR,{09,10,11})
+	aadd(aVinfoTR,{12,13,14})
+	aadd(aVinfoTR,{15,16,17})
+
+	For nL := 1 to len(aVinfoBL)
+		For nC := 1 to len(aVinfoBL[nL])
+			aVinfoBL[nL][nC] := val(substr(cBitVInfo,18-aVinfoBL[nL][nC],1))
+		NExt
+	Next
+
+	PutArray(::aGrid,aVinfoBL,::nSize-10,01 )
+
+	For nL := 1 to len(aVinfoTR)
+		For nC := 1 to len(aVinfoTR[nL])
+			aVinfoTR[nL][nC] := val(substr(cBitVInfo,18-aVinfoTR[nL][nC],1))
+		NExt
+	Next
+
+	PutArray(::aGrid,aVinfoBL,01,::nSize-10)
+
 Endif
 
 // Coloca as Time Lines
@@ -758,7 +811,7 @@ ElseIf ::nMode == 3 // Codificação em Bytes ( ASCII / UTF8 )
 
 Else
 
-	UserException("TODO")
+	UserException("MODE ["+cValToChar(::nMode)+"] NOT IMPLEMENTED")
 
 Endif
 
@@ -789,19 +842,22 @@ IF aECCW = NIL
 	USerException("Invalid Version or Error Correction")
 Endif
 
-nTotBlocks := val(aECCW[2])
-nErrCW     := val(aECCW[3])
-nBlocks    := val(aECCW[4])
-aBlock8 := {}
+nTotData  := val(aECCW[2])
+nErrCW      := val(aECCW[3])
+nBlocks1    := val(aECCW[4])
+nData1      := val(aECCW[5])
+nBlocks2    := val(aECCW[6])
+nData2      := val(aECCW[7])
 
-If nBlocks > 1
-	UserException("More than 1 Data Block not implemented YET")
-Endif
 
 // Informa o total de CodeWords de correção de erro necessários
-::oLogger:Write("BUILDDATA","Total Data CodeWords ......... "+cValToChar(nTotBlocks))
+::oLogger:Write("BUILDDATA","Total Data CodeWords ......... "+cValToChar(nTotData))
+::oLogger:Write("BUILDDATA","Total Blocks Type 1 .......... "+cValToChar(nBlocks1))
+::oLogger:Write("BUILDDATA","CodeWords per Block 1......... "+cValToChar(nData1))
+::oLogger:Write("BUILDDATA","Total Blocks Type 2 .......... "+cValToChar(nBlocks2))
+::oLogger:Write("BUILDDATA","CodeWords per Block 2......... "+cValToChar(nData2))
 
-nReqBits := nTotBlocks*8
+nReqBits := nTotData*8
 ::oLogger:Write("BUILDDATA","Data Required Bits ........... "+cValToChar(nReqBits))
 
 If nBitSize < nReqBits
@@ -810,13 +866,14 @@ If nBitSize < nReqBits
 Endif
 
 // Break Data int 8 bytes blocks 
+aBitsBlk := {}
 cBitsRow := ''
 while !empty(cDataBits)
 	cBitsRow += left(cDataBits,1)
 	cDataBits := substr(cDataBits,2)
 	If len(cBitsRow) == 8
-		aadd(aBlock8,cBitsRow)
-		::oLogger:Write("BUILDDATA","Build CodeWord #"+cValToChar(len(aBlock8))+" ["+cBitsRow+"] ")
+		aadd(aBitsBlk,cBitsRow)
+		::oLogger:Write("BUILDDATA","Build CodeWord #"+cValToChar(len(aBitsBlk))+" ["+cBitsRow+"] ")
 		cBitsRow := ''
 	Endif
 Enddo
@@ -824,20 +881,20 @@ Enddo
 // Complementa a sequencia de bits em multiplos de 8
 IF !empty(cBitsRow)
 	cBitsRow := left(cBitsRow+"00000000",8)
-	aadd(aBlock8,cBitsRow)
-	::oLogger:Write("BUILDDATA","Padding Last CodeWord #"+cValToChar(len(aBlock8))+" ["+cBitsRow+"] ")
+	aadd(aBitsBlk,cBitsRow)
+	::oLogger:Write("BUILDDATA","Padding Last CodeWord #"+cValToChar(len(aBitsBlk))+" ["+cBitsRow+"] ")
 Endif
 
 // Preenche os blocos finais ( caso vazios )
 // com um padrao de preenchimento ( filler )
-While len(aBlock8) < nTotBlocks
-	If len(aBlock8) < nTotBlocks
-		aadd(aBlock8,"11101100")
-		::oLogger:Write("BUILDDATA","Filler CodeWord #"+cValToChar(len(aBlock8))+" ["+"11101100"+"] ")
+While len(aBitsBlk) < nTotData
+	If len(aBitsBlk) < nTotData
+		aadd(aBitsBlk,"11101100")
+		::oLogger:Write("BUILDDATA","Filler CodeWord #"+cValToChar(len(aBitsBlk))+" ["+"11101100"+"] ")
 	Endif
-	If len(aBlock8) < nTotBlocks
-		aadd(aBlock8,"00010001")
-		::oLogger:Write("BUILDDATA","Filler CodeWord #"+cValToChar(len(aBlock8))+" ["+"00010001"+"] ")
+	If len(aBitsBlk) < nTotData
+		aadd(aBitsBlk,"00010001")
+		::oLogger:Write("BUILDDATA","Filler CodeWord #"+cValToChar(len(aBitsBlk))+" ["+"00010001"+"] ")
 	Endif
 Enddo
 
@@ -849,9 +906,9 @@ Enddo
 aQRIntData := {}
 cTmpCode := ''
 conout("")
-For nI := 1 to nTotBlocks
-	BIT8TON( aBlock8[nI] , nInt )
-	::oLogger:Write("BUILDDATA","CodeWord ["+str(nI,3)+"] Data ["+aBlock8[nI]+"] ("+cValToChar(nInt)+")")
+For nI := 1 to nTotData
+	BIT8TON( aBitsBlk[nI] , nInt )
+	::oLogger:Write("BUILDDATA","CodeWord ["+str(nI,3)+"] Data ["+aBitsBlk[nI]+"] ("+cValToChar(nInt)+")")
 	aadd( aQRIntData , nInt )
 	IF nI>1
 		cTmpCode += ','
@@ -862,18 +919,72 @@ Next
 
 ::oLogger:Write("BUILDDATA","Error Correction CodeWords ... "+cValToChar(nErrCW))
 
-// Com os dados obtidos em aQRIntData, agora vamso gerar o array de Error Correction
-aQRErrData := ::BuildErrData(aQRIntData,nErrCW)
+// Distribuição em blocos e cálculo da 
+// correção de erro por blocos 
 
-// TODO
-// Agora faz o "interleave" dos dados baseado nos gupos
-// por hora, sem interleave
+If nBlocks1 + nBlocks2 > 1
 
+	// passo 1 . Distribuir os dados N blocos, em grupos 1 e 2
+
+	aGrupos := {{},{}}
+	aErrors := {{},{}}
+	nPosData := 1
+	
+	// Blocos tipo 1 		
+	For nB := 1 to nBlocks1
+		
+		// Separa os dados para o grupo 
+		aGrpData := {}
+		For nI := 1 to nData1
+			aadd(aGrpData , aQrIntData[nPosData])
+			nPosData++
+		Next		
+		aadd(aGrupos[1],aGrpData)
+		
+		// Calcula correção de erro para o grupo 
+		aErrData := ::BuildErrData(aGrpData,nErrCW)
+		aadd(aErrors[1] , aErrData )
+	
+        Next
+        
+	// Blocos tipo 2
+	For nB := 1 to nBlocks2
+	
+		// Separa os dados para o grupo 
+		aGrpData := {}
+		For nI := 1 to nData2
+			aadd(aGrpData , aQrIntData[nPosData])
+			nPosData++
+		Next		
+		aadd(aGrupos[2],aGrpData)
+
+		// Calcula correção de erro para o grupo 
+		aErrData := ::BuildErrData(aGrpData,nErrCW)
+		aadd(aErrors[1] , aErrData )
+	
+     Next
+        
+	// Passo 2. Fazer o interleave dos grupos de dados e erro para gerar 
+	// a sequencia final de codigos para o QR Code
+          
+	aQRIntData := Interleave( aGrupos )
+	aQRErrData := Interleave( aErrors )
+
+
+Else
+
+	// Gera a correção de erro para o bloco unico 
+	aQRErrData := ::BuildErrData(aQRIntData,nErrCW)
+
+
+Endif
+
+// Agora emenda os dados com a correção de erro para gerar a sequencia final 	
 aEval(aQRIntData,{|x| aadd(aFinalData,x) })
 aEval(aQRErrData,{|x| aadd(aFinalData,x) })
-
+	
 ::oLogger:Write("BUILDDATA","Final Data Size ........... "+cValToChar(len(aFinalData)))
-
+	
 // Guarda o array de Bytes de dados e Correção de Erro
 // na propriedade aBitStream
 ::aBitStream := aClone(aFinalData)
@@ -2621,6 +2732,54 @@ aadd(aRemBits,{40,0})
 
 Return aRemBits
 
+
+// https://www.thonky.com/qr-code-tutorial/format-version-tables
+// Version Information Strings a partir da versao 7
+STATIC _aVInfo := LoadVInfo()
+
+STATIC Function GetVInfo(nVersion)
+Return _aVInfo[nVersion-6][2]
+
+Static Function LoadVInfo()
+Local aVInfo := {}
+
+aadd(aVInfo,{07,"000111110010010100"})
+aadd(aVInfo,{08,"001000010110111100"})
+aadd(aVInfo,{09,"001001101010011001"})
+aadd(aVInfo,{10,"001010010011010011"})
+aadd(aVInfo,{11,"001011101111110110"})
+aadd(aVInfo,{12,"001100011101100010"})
+aadd(aVInfo,{13,"001101100001000111"})
+aadd(aVInfo,{14,"001110011000001101"})
+aadd(aVInfo,{15,"001111100100101000"})
+aadd(aVInfo,{16,"010000101101111000"})
+aadd(aVInfo,{17,"010001010001011101"})
+aadd(aVInfo,{18,"010010101000010111"})
+aadd(aVInfo,{19,"010011010100110010"})
+aadd(aVInfo,{20,"010100100110100110"})
+aadd(aVInfo,{21,"010101011010000011"})
+aadd(aVInfo,{22,"010110100011001001"})
+aadd(aVInfo,{23,"010111011111101100"})
+aadd(aVInfo,{24,"011000111011000100"})
+aadd(aVInfo,{25,"011001000111100001"})
+aadd(aVInfo,{26,"011010111110101011"})
+aadd(aVInfo,{27,"011011000010001110"})
+aadd(aVInfo,{28,"011100110000011010"})
+aadd(aVInfo,{29,"011101001100111111"})
+aadd(aVInfo,{30,"011110110101110101"})
+aadd(aVInfo,{31,"011111001001010000"})
+aadd(aVInfo,{32,"100000100111010101"})
+aadd(aVInfo,{33,"100001011011110000"})
+aadd(aVInfo,{34,"100010100010111010"})
+aadd(aVInfo,{35,"100011011110011111"})
+aadd(aVInfo,{36,"100100101100001011"})
+aadd(aVInfo,{37,"100101010000101110"})
+aadd(aVInfo,{38,"100110101001100100"})
+aadd(aVInfo,{39,"100111010101000001"})
+aadd(aVInfo,{40,"101000110001101001"})
+
+Return aVInfo
+
 // ------------------------------------------------------------
 // Monta alguns QRCodes para escolher qual o melhor
 // Data Mask a ser utilizado. Os valores numéricos 
@@ -2898,4 +3057,35 @@ and vertical total to obtain penalty score #1.
 // mais uma unidade de penalidade para cada módulo extra da mesma cor 
 
 Return                                  
+
+// FAz o interleave dos dados de todos os grupos 
+// pegando a cada iteração um byte de cada bloco 
+// de cada grupo em sequencia
+
+Static Function Interleave(aGrpData)
+Local nI, nPos := 1 
+Local aSeqData := {}
+Local aResult := {}      
+Local lHasData := .T.
+
+// Cria lista dos blocos dos grupos 1 e 2
+aeval(aGrpData[1] , { |x| aadd(aSeqData , aclone(x) ) } )
+aeval(aGrpData[2] , { |x| aadd(aSeqData , aclone(x) ) } )
+
+// Iniciando na posicao 1, pega todos os bytes 
+// da posicao em todos os blocos e acrescenta no 
+// resultado.
+While lHasData
+	lHasData := .F.
+	For nI := 1 to len(aSeqData)
+		If nPos <= len(aSeqData[nI])
+			aadd(aResult,aSeqData[nI][nPos])	
+			lHasData := .T.
+	    Endif
+	Next    
+	nPos++
+Enddo
+
+Return aResult
+
 

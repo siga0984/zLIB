@@ -42,6 +42,7 @@ CLASS ZBITMAP FROM LONGNAMECLASS
     DATA nBgColor      // Cor de fundo ( default = branco ) 
     DATA nMargin       // Margem da imagem   
     DATA nPenSize      // Grossura da "caneta" de desenho ( default=1 ) 
+    DATA lTransparent  // Transparencia ( PNG Only ) 
     
     METHOD New()           // Cria uma imagem vazia 
     METHOD LoadFromFile()  // Le imagem de um arquivo BMP
@@ -66,6 +67,7 @@ CLASS ZBITMAP FROM LONGNAMECLASS
     METHOD Copy()          // Copia uma parte da imagem para a área interna de transferencia
     METHOD Paste()         // Plota a imagem da area interna de transferencia na coordenada indicada
     METHOD Resize()        // Redimensiona BMP em percentual horizontal e vertical
+    METHOD SetTransparent()// Liga/DEsliga transparencia da cor de fundo 
 
 ENDCLASS
 
@@ -143,6 +145,10 @@ Next
 
 // Tamanho final da imagem 
 ::nFileSize :=   ::nRawData + ::nOffSet
+
+// Transprencia ( PNG ) 
+// Por hora define que a cor de fundo será transparente
+::lTransparent := .F.
 
 Return self
 
@@ -363,6 +369,7 @@ Local nColSize , cRowBuffer
 Local nColPos,cBits
 Local nL , nC
 Local aRow := {}
+Local cIdat
 
 ::cFileName := cFile
 
@@ -386,6 +393,9 @@ Endif
 
 // Corta o header fora
 cBuffer := substr(cBuffer,9)
+
+// Data Compacted Stream
+cIDAT := ''
              
 // Varre o resto do buffer 
 while len(cBuffer) > 0
@@ -431,9 +441,47 @@ while len(cBuffer) > 0
 		aPng[PNG_INTERLACE]    := asc(substr(cData,13,1))
 
 		// Por enqianto aproveita apenas comprimento e altura
+		// e  Bit Depth ( Bits Per Pixel ) 
 		::nWidth := aPng[PNG_WIDTH]
 		::nHeight := aPng[PNG_HEIGHT]
-
+	
+		IF aPng[PNG_COLOR_TYPE] = 3 // Cada pixel é um indice da paleta de cores
+			IF aPng[PNG_BIT_DEPHT] = 1
+				::nBPP     := 1 
+				::nOffSet  := 62
+				::nBgColor := 1 // Branco 
+			ElseIf aPng[PNG_BIT_DEPHT]= 4
+				::nBPP     := 4
+				::nOffSet  := 118
+				::nBgColor := 15 // Branco 
+			ElseIf aPng[PNG_BIT_DEPHT] = 8
+				::nBPP     := 8 
+				::nOffSet  := 1078
+				::nBgColor := 255 // Branco 
+			Else
+	        	UserException("PNG Unsupported Bit Depth ("+cValToChar(aPng[PNG_BIT_DEPHT])+") on ColorType=3")
+			Endif        
+		ElseIf aPng[PNG_COLOR_TYPE] = 2
+			// Cada pixel é um RGB 
+			If aPng[PNG_BIT_DEPHT] = 8
+				::nBPP     := 24 
+				::nOffSet  := 54
+				::nBgColor := RGB(256,256,256)-1 // branco 
+			Else
+	        	UserException("PNG Unsupported Bit Depth ("+cValToChar(aPng[PNG_BIT_DEPHT])+") on ColorType=2")
+			Endif			
+		ElseIf aPng[PNG_COLOR_TYPE] = 6
+			// Cada pixel é um RGB + alpha 
+			If aPng[PNG_BIT_DEPHT] = 8
+				::nBPP     := 24 
+				::nOffSet  := 54
+				::nBgColor := RGB(256,256,256)-1 // branco 
+			Else
+	        	UserException("PNG Unsupported Bit Depth ("+cValToChar(aPng[PNG_BIT_DEPHT])+") on ColorType=2")
+			Endif			
+		Else
+			UserException("PNG Unsupported Color Type "+cValToChar(aPng[PNG_COLOR_TYPE]))
+		Endif	
 		
 	ElseIF Upper(cType) == 'SRGB'
 		
@@ -486,30 +534,46 @@ while len(cBuffer) > 0
 		
 	ElseIF Upper(cType) == 'IDAT'
 
-		// por hora chumbado monocromatico 
-		::nBPP := 1   
-		::nBgColor := 1
+		// Soma o stream compactado, caso haja mais que um      
+     	cIdat += cData
+		
+	ElseIF Upper(cType) == 'IEND'
 
-		cBufferOut := ''
-		nLenghtOut := 32*1024
-		UnCompress( @cBufferOut ,  @nLenghtOut , cData, len(cData)  )
+		// Fim do arquivo 
+		EXIT
 		
-		nColSize := nLenghtOut / aPng[PNG_HEIGHT]
-		
-		// Inicializa BMP com fundo branco
-		::aMatrix := {}
-		For nC := 1 to ::nWidth
-			aadd(aRow,::nBgColor)
-		Next
-		For nL := 1 to ::nHeight
-			aadd(::aMatrix,aClone(aRow))
-		Next
-		
-		// Mastiga o buffer binario alimentando a matrix do Bitmap
-		For nL := 1 to 	aPng[PNG_HEIGHT]
-			cRowBuffer := substr(cBufferOut,1,nColSize)
-			cBufferOut := substr(cBufferOut,nColSize+1)
-			nColPos := 1
+	Else
+
+		Conout("WARNING - LoadFromPNG - Ignored Chunk ["+cType+"]")
+		conout(hexstrdump(cData))
+
+	Endif
+	
+Enddo
+
+IF !empty(cIdat)
+
+	cBufferOut := ''
+	nLenghtOut := 10*1024*1024
+	UnCompress( @cBufferOut ,  @nLenghtOut , cIdat, len(cIdat)  )
+
+	nColSize := nLenghtOut / aPng[PNG_HEIGHT]
+	
+	// Inicializa BMP com fundo branco
+	::aMatrix := {}
+	For nC := 1 to ::nWidth
+		aadd(aRow,::nBgColor)
+	Next
+	For nL := 1 to ::nHeight
+		aadd(::aMatrix,aClone(aRow))
+	Next
+	
+	// Mastiga o buffer binario alimentando a matrix do Bitmap
+	For nL := 1 to 	aPng[PNG_HEIGHT]
+		cRowBuffer := substr(cBufferOut,1,nColSize)
+		cBufferOut := substr(cBufferOut,nColSize+1)
+		nColPos := 1
+		If aPng[PNG_COLOR_TYPE] == 3 .and. ::nBPP = 1
 			For nC := 2 to nColSize
 				cBits := NTOBIT8( asc(substr(cRowBuffer,nC,1)) )
 				While len(cBits) > 0
@@ -520,20 +584,31 @@ while len(cBuffer) > 0
 					cBits := substr(cBits,2)
 				Enddo
 			Next
-		Next
-		
-	ElseIF Upper(cType) == 'IEND'
+		ElseIf aPng[PNG_COLOR_TYPE] == 2 .and. ::nBPP = 24
+			// Trinca RGB
+			For nC := 2 to nColSize STEP 3
+				nRed := asc(substr(cRowBuffer,nC,1))
+				nGreen := asc(substr(cRowBuffer,nC+1,1))
+				nBlue := asc(substr(cRowBuffer,nC+2,1))
+				::aMatrix[nL,nColPos] := RGB(nRed,nGreen,nBlue)
+				nColPos++
+			Next
+		ElseIf aPng[PNG_COLOR_TYPE] == 6 .and. ::nBPP = 24
+			// Trinca RGB + Alpha 
+			For nC := 2 to nColSize STEP 4
+				nRed := asc(substr(cRowBuffer,nC,1))
+				nGreen := asc(substr(cRowBuffer,nC+1,1))
+				nBlue := asc(substr(cRowBuffer,nC+2,1))
+				::aMatrix[nL,nColPos] := RGB(nRed,nGreen,nBlue)
+				nColPos++
+			Next
+		Else
+			UserException("ColorType ["+cValToChar(aPng[PNG_COLOR_TYPE])+"] BPP ["+cValToChar(::nBPP)+"] unsupported.")
+		Endif
+	Next
 
-		// Fim do arquivo 
-		EXIT
-		
-	Else
+Endif
 
-		Conout("WARNING - LoadFromPNG - Ignored Chunk ["+cType+"]")
-
-	Endif
-	
-Enddo
 
 Return .T. 
 
@@ -923,6 +998,25 @@ For nI := 1 to len(::aColors)
 NExt
 
 PNGSaveChunk(nH,"PLTE",cData)
+
+if ::lTransparent
+	// SE tiver transparencia, por hora seta apenas para cor de fundo da imagem 
+	// Cria o Chunk tRNS para isso ( baseado no tipo de cor 3 ( indexed colors ) 
+	// para as cores da palete 
+	
+	cData := ''
+	For nI := 0 to len(::aColors)-1
+		If nI == ::nBgColor
+			cData += chr(0) // Transparente
+		Else
+			cData += chr(255) // Opaco 
+		Endif
+	NExt
+	
+	PNGSaveChunk(nH,"tRNS",cData)
+
+Endif
+
 
 // Monta o chunk IDAT -- por enquanto apenas um 
 
@@ -1693,6 +1787,10 @@ Ferase(cTmpFile)
 Return
 
 
+// ---------------------------------------------------------------------
+// Aumenta ou diminui o tamanho da imagem, horizontal e/ou verticalmente
+// Valores informacos em percentual , base = 100 % , respectivamente 
+
 METHOD Resize(nPctH, nPctV) CLASS ZBITMAP
 Local nNewWidth
 Local nNewHeight
@@ -1762,7 +1860,9 @@ freeobj(oNewBMP)
 
 Return .T. 
 
-
+Method SetTransparent(lSet) CLASS ZBITMAP
+::lTransparent := lSet
+Return
 
 // Converte uma cor de decimal para RGB
 // ( <nRed> + ( <nGreen> * 256 ) + ( <nBlue> * 65536 ) )
