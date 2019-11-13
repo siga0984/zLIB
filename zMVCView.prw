@@ -1,3 +1,39 @@
+/* -------------------------------------------------------------------------------------------
+
+Copyright 2015-2019 Júlio Wittwer ( siga0984@gmail.com | http://siga0984.wordpress.com/ )
+
+É permitido, gratuitamente, a qualquer pessoa que obtenha uma cópia deste software 
+e dos arquivos de documentação associados (o "Software"), para negociar o Software 
+sem restrições, incluindo, sem limitação, os direitos de uso, cópia, modificação, fusão,
+publicação, distribuição, sublicenciamento e/ou venda de cópias do Software, 
+SEM RESTRIÇÕES OU LIMITAÇÕES. 
+
+O SOFTWARE É FORNECIDO "TAL COMO ESTÁ", SEM GARANTIA DE QUALQUER TIPO, EXPRESSA OU IMPLÍCITA,
+INCLUINDO MAS NÃO SE LIMITANDO A GARANTIAS DE COMERCIALIZAÇÃO, ADEQUAÇÃO A UMA FINALIDADE
+ESPECÍFICA E NÃO INFRACÇÃO. EM NENHUM CASO OS AUTORES OU TITULARES DE DIREITOS AUTORAIS
+SERÃO RESPONSÁVEIS POR QUALQUER REIVINDICAÇÃO, DANOS OU OUTRA RESPONSABILIDADE, SEJA 
+EM AÇÃO DE CONTRATO OU QUALQUER OUTRA FORMA, PROVENIENTE, FORA OU RELACIONADO AO SOFTWARE. 
+
+                    *** USE A VONTADE, POR SUA CONTA E RISCO ***
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+and associated documentation files (the "Software"), to deal in the Software without 
+restriction, including without limitation the rights to use, copy, modify, merge, publish, 
+distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom 
+the Software is furnished to do so, WITHOUT RESTRICTIONS OR LIMITATIONS. 
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, 
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR 
+PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE 
+FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT 
+OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE. 
+
+                    ***USE AS YOU WISH , AT YOUR OWN RISK ***
+
+------------------------------------------------------------------------------------------- */
+
+
+
 #include 'protheus.ch'
 #include 'zlib.ch' 
 
@@ -238,7 +274,7 @@ Local oNewSay , oNewGet , oLupa
 Local nActRow
 Local oBtnAct, cPrompt
 Local cFTable, cFKey, cFName , bAction
-
+Local nMemoRows := 5
 
 #ifdef HAS_NAVBUTTONS
 Local oPanelNav
@@ -384,12 +420,21 @@ For nI := 1 to nFldCount
 	If cFldType == 'M'
 
 		// Campo memo, editávem em 80 colunas e 5 linhas 
+		// Release 20191019 -- Definicao do campo pode mudar o tamanho de linhas visiveis na tela
 
 		nGetSize := CALCSIZEGET( 80 ) 
 
+		// Quantas linhas do mulltiline devem ser mostradas		
+		nMemoRows := oFldDef:GetMultiLine()
+
+		IF nMemoRows  <= 0 	
+			// DEfault = 5 linhas 
+			nMemoRows := 5
+		Endif
+
 		// Monta o GET para este campo , inicialmente com uma variavel "dummy"
 		@   nRow,70 GET oNewGet VAR _Dummy_ MULTILINE ;
-			COLOR VIEW_GETFR_COLOR,VIEW_GETBG_COLOR SIZE nGetSize ,60 OF oPanelCrud PIXEL
+			COLOR VIEW_GETFR_COLOR,VIEW_GETBG_COLOR SIZE nGetSize ,(nMemoRows*12) OF oPanelCrud PIXEL
 
 		// A cor nao está sendo respeitada 
 		/*
@@ -493,10 +538,11 @@ For nI := 1 to nFldCount
 	// Cada novo campo pula 15 PIXELS 
 	// ( caso o campo esteja visivel ) 
 	IF oFldDef:IsVisible()
+		nRow += 15
 		If cFldType == 'M'			
-			nRow += 75
+			// Pulo de linhas para campo MEMO ( Get Multiline ) 
+			nRow += ( nMemoRows * 12 ) 
 		Else
-			nRow += 15
 		Endif
 	Endif
 	
@@ -895,7 +941,7 @@ For nI := 1 to nFldCount
 	oGet:SetEnable( oFldDef:IsEnabled() )
 
 	// Define se o campo é somente leitura ou nao 
-	oGet:LREADONLY := oFldDef:IsReadOnly()
+	// oGet:LREADONLY := oFldDef:IsReadOnly()
 	
 	// SE tem um label relacionado, limpa
 	// e habilita a lupa de busca 
