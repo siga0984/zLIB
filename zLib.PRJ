@@ -16,7 +16,7 @@ Group zLib
       FoldersCount=2
       Folder Fontes
          VSSPath=Fontes
-         FilesCount=33
+         FilesCount=43
          File \Projetos\zLib\zApp.prw
              Type=T
          End
@@ -114,6 +114,36 @@ Group zLib
              Type=T
          End
          File \Projetos\zLib\zWorkJob.prw
+             Type=T
+         End
+         File \Projetos\zLib\zAutoApp.prw
+             Type=T
+         End
+         File \Projetos\zLib\zBarCode128.prw
+             Type=T
+         End
+         File \Projetos\zLib\zBitmap.prw
+             Type=T
+         End
+         File \Projetos\zLib\zControlFactory.prw
+             Type=T
+         End
+         File \Projetos\zLib\zDefFactory.prw
+             Type=T
+         End
+         File \Projetos\zLib\zJSonTableDef.prw
+             Type=T
+         End
+         File \Projetos\zLib\zModelFactory.prw
+             Type=T
+         End
+         File \Projetos\zLib\zMongoDBClient.prw
+             Type=T
+         End
+         File \Projetos\zLib\ZQRCode.prw
+             Type=T
+         End
+         File \Projetos\zLib\zViewFactory.prw
              Type=T
          End
       End
