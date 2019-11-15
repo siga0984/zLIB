@@ -82,3 +82,25 @@ Endif
 Return cRet
 
 
+// ----------------------------------------
+// Recebe uma string binária
+// Retorna uma uma string ASCII hexadecimal representando
+// os bytes da scring informada como parametro
+
+STATIC Function STR2Hex(cBuffer,nOffset,nLength)
+Local nI , cRet := ''
+Local nTamBuff := len(cBuffer)
+
+// Valores DEFAULT
+IF nOffset = NIL ; nOffset := 1 ; Endif
+IF nLength = NIL ; nLength := nTamBuff ; Endif
+
+cBuffer := Substr(cBuffer,nOffset,nLength)
+
+For nI := 1 to nTamBuff
+	cRet += DEC2HEX(Asc(substr(cBuffer,nI,1)))
+Next
+
+cBuffer := ''
+
+Return cRet

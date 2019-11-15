@@ -41,6 +41,7 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
   #define zLibStr2HexDmp_CH
 
   #xtranslate Str2HexDmp( <cBuffer> [,nOffset] [,nLength] )   =>  STATICCALL( ZLIBSTR2HEXDMP , STR2HEXDMP , <cBuffer> [,nOffset] [,nLength] ) 
+  #xtranslate Str2Hex( <cBuffer> [,nOffset] [,nLength] )   =>  STATICCALL( ZLIBSTR2HEXDMP , STR2HEX , <cBuffer> [,nOffset] [,nLength] ) 
 
 #endif
 

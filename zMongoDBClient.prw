@@ -59,7 +59,7 @@ CLASS ZMONGODBCLIENT FROM LONGNAMECLASS
    METHOD SetDB()
    METHOD SetVerbose()
    
-   METHOD MsgSend()
+   METHOD RunCommand()
 
 ENDCLASS
 
@@ -127,12 +127,17 @@ METHOD SetVerbose(lSet) CLASS ZMONGODBCLIENT
 Return
 
 // ----------------------------------------
+// Execuçao de um comando no MongoDB 
+// Recebe o nome do comando -- que deve ser o primeiro nó do BSON 
+// E o Objeto JSON com os dados do comando a ser executado 
+// Recebe opcionalmente o ID de request e Flags...
 
-METHOD MsgSend(oJsonCmd,aCmds,iReqID,iReqFlags) CLASS ZMONGODBCLIENT 
+METHOD RunCommand(cCommand,oJsonCmd,iReqID,iReqFlags) CLASS ZMONGODBCLIENT 
 Local cSection := ''
 Local cSendCmd := '' , nSend
 Local cRecvMsg := '' , nRecv
 Local oResponse
+Local nSecType
 
 If ::oSocket = NIL 
 	UserException("ZMONGODBCLIENT NOT CONNECTED") 
@@ -157,11 +162,10 @@ If oJsonCmd['$db'] = NIL
 	oJsonCmd['$db'] := ::cDatabase  
 Endif
 
-aadd(aCmds,'$db')
-
 // Cria uma seção para uma requisição ( Section 0 ) 
 // Usa um objeto JSON gerado e converte para BSON 
-cSection := chr(0) + JTOBSON( oJsonCmd , aCmds )
+// o comando deve ser o primeiro node do BSON 
+cSection := chr(0) + JTOBSON( oJsonCmd , cCommand )
 
 // Cria a mensagem com a requisição para o MongoFB
 cSendCmd += L2Bin( len(cSection) + (5*4) ) // Tamanho total da requisição, Header + Flags + Seção 0 
@@ -217,35 +221,48 @@ conout('Section Type ...... '+cValToChaR(nSecType))
 If nSecType == 0 
 
 	// Seção tipo 0 = um documento BSON de resposta 
-	// Passa o BSON pra frente para gerar um objeto JSON 
-	
     // Transforma o BSON em um objeto JSON 
+    
 	oResponse := BSONTOJ(substr(cRetSections,2))
 	
 Else 
 
-	// Mais de uma seção 
-	UserException("Multiple Sections not implemented")
+	// Retornou Mais de uma seção ?! 
+	// Opa ... 
+	
+	UserException("ZMONGODBCLIENT:RunCommand() -- MULTIPLE SECTIONS NOT IMPLEMENTED")
 
 Endif
 
 Return oResponse
 
-
 // ----------------------------------------
 // Funcão auxiliar JTOBSON
-// Retorna uma string binária BSON representando
-// o Objeto JsonObject usado como parâmetro
-// Recebe a lista de propriedades a considerar
+// Retorna uma string binária BSON representando o Objeto JsonObject usado como parâmetro
+// Recebe o nome do primeiro nó no BSON a ser gerado 
+// Caso nao seja especificado, gera na ordem que o GetNames() devolver 
+// Tratamento para tipos nativos do BSON representados como STring em AdvPL 
+// #INT64_<hex8>       -- Inteiro 64 bits, 8 bytes codificados em hexadecimal
+// #OBJID_<hex12>      -- Object ID, 12 bytes codificados em hexadecimal 
+// #UTC64_<hex8>       -- UTC Datetime (int64) , 8 bytes codificados em hexadecimal
+// #TSU64_<hex8>       -- TimeStamp (uint64)  , 8 bytes codificados em hexadecimal
+// #JSSTR_<javascript> -- JavaSCript Code como String
 // ----------------------------------------
 
-STATIC Function JTOBSON(oJson , aNames )
+STATIC Function JTOBSON(oJson, cFirst)
 Local cBson := ''
-Local nI , nJ , oTmp, aTmp
+Local nI , nJ , oTmp, aTmp, cTmp
 Local cName , xValue, cValType     
+Local aNames := oJson:GetNames()
+Local nPos
 
-If aNames = NIL
-	aNames := oJson:GetNames()
+If cFirst != NIL
+	nPos := ascan(aNames,cFirst)
+	If nPos > 1
+		cTmp := aNames[1]
+		aNames[1] := cFirst
+		aNames[nPos] := cTmp
+	Endif 	
 Endif
 
 For nI := 1 to len(aNames)
@@ -258,15 +275,36 @@ For nI := 1 to len(aNames)
 
 		// Reverter tratamentos da BSONTOJ
 		
-		If left(xValue,7) == '#INT64_'
-			cBson += chr(18) // BSON INT64 - 8 bytes
+		If left(xValue,7) == '#OBJID_'
+			cBson += chr(7) 
 			cBson += ( cName + chr(0) )
 			xValue := substr(xValue,8)
 			For nJ := 1 to len(xValue) STEP 2 
 				cBson += chr( __hextodec( substr(xValue,nJ,2)) )
 			Next		
-		ElseIf left(xValue,7) == '#OBJID_'
-			cBson += chr(7) // BSON Object ID - 12 bytes 
+		ElseIf left(xValue,7) == '#UTC64_'
+			cBson += chr(9) 
+			cBson += ( cName + chr(0) )
+			xValue := substr(xValue,8)
+			For nJ := 1 to len(xValue) STEP 2 
+				cBson += chr( __hextodec( substr(xValue,nJ,2)) )
+			Next		
+		ElseIf left(xValue,7) == '#JSSTR_'
+			cBson += chr(13)
+			cBson += ( cName + chr(0) )
+			xValue := substr(xValue,8)
+			cBson += l2bin( len(xValue)+1 )
+			cBson += xValue
+			cBson += chr(0)
+		ElseIf left(xValue,7) == '#TSU64_'
+			cBson += chr(17)
+			cBson += ( cName + chr(0) )
+			xValue := substr(xValue,8)
+			For nJ := 1 to len(xValue) STEP 2 
+				cBson += chr( __hextodec( substr(xValue,nJ,2)) )
+			Next		
+		ElseIf left(xValue,7) == '#INT64_'
+			cBson += chr(18) 
 			cBson += ( cName + chr(0) )
 			xValue := substr(xValue,8)
 			For nJ := 1 to len(xValue) STEP 2 
@@ -304,21 +342,29 @@ For nI := 1 to len(aNames)
 		Else
 			cBson += chr(0)
 		Endif
-	ElseIf cValType == 'D' // Data por enquanto vira string AAAAMMDD
+
+	ElseIf cValType == 'D' // Data AdvPL por enquanto vira string AAAAMMDD
+
 		cBson += chr(02) // BSON UTF8 String
 		cBson += ( cName + chr(0) )
 		cBson += l2bin( 9 )
 		cBson += dtos(xValue)
 		cBson += chr(0)
+
 	ElseIf cValType == 'U'
+
 		cBson += chr(10) // BSON NULL Value 
 		cBson += ( cName + chr(0) )
+
 	ElseIf cValType == 'J'
+
 		// Outro JSON Object 
 		cBson += chr(03) // BSON embedded document
 		cBson += ( cName + chr(0) )
 		cBson += JTOBSON( xValue )
+
 	ElseIf cValType == 'A'
+
 		// Array ...
 		// Quebra em um documento onde cada propriedade 
 		// é um elemento do array, iniciando em '0'
@@ -333,21 +379,32 @@ For nI := 1 to len(aNames)
 		cBson += JTOBSON(oTmp,aTmp)
 		oTmp := NIL               
 		aTmp := NIL 
+
 	Else
+
 		USerException("JTOBSON ERROR - UNSUPPORTED Argument Type ["+cValType+"]")
+
 	Endif
+
 Next
 
-// Monta a string final BSON : 
-// 4 bytes com o tamanho total, mais o conteúdo
-// finaliza com ASCII 0 
+// Monta / Envelopa a string BSON final  : 
+// 4 bytes ( total size ), o conteúdo e o terminador ( ASCII 0  )
+
 Return l2bin( len(cBson) + 5 ) + cBson + chr(0)
 
 
 // ----------------------------------------
 // Função auxiliar BSONTOJ
-// Recebe uma string BSON
-// e retorna um objeto JSON correspondente
+// Recebe uma string BSON e retorna um objeto JSON correspondente
+// Tipos nativos do BSON sem suporte direto em AdvPL viram string com prefixo diferenciado:
+// #INT64_<hex8>       -- Inteiro 64 bits, 8 bytes codificados em hexadecimal
+// #OBJID_<hex12>      -- Object ID, 12 bytes codificados em hexadecimal 
+// #UTC64_<hex8>       -- UTC Datetime (int64) , 8 bytes codificados em hexadecimal
+// #TSU64_<hex8>       -- TimeStamp (uint64)  , 8 bytes codificados em hexadecimal
+// #JSSTR_<javascript> -- JavaSCript Code como String
+// ----------------------------------------
+
 
 STATIC Function BSONTOJ(cBSON)
 Local oRet := JsonObject():new()
@@ -383,29 +440,35 @@ While len(cBSON) > 0
 	// Recupera o nome do elemento, removendo do buffer
 	cName := GetCString(@cBSON)
 
-	If nElement == 1 // 	64-bit binary floating point
-
+	If nElement == 1 
+		
+		// 	"\x01" e_name double	64-bit binary floating point
+		// Converte para valor numérico direto em AdvPL 
+		
 		oRet[cName] := bin2d( substr(cBSON,1,8) )
 		cBSON := substr(cBSON,9)
 	
-	ElseIf nElement == 2 // BSON UTF8 String
+	ElseIf nElement == 2 
 
+		// "\x02" e_name string	UTF-8 string
 		// Recupera a string no BSON 
+		
 		cValue := GetBString(@cBSON)
-
 		oRet[cName] := cValue                   
 		
-	ElseIF nElement == 3 // Embedded document
-	
+	ElseIF nElement == 3 
+	                     
+		// "\x03" e_name document	Embedded document
+		// Um objeto BSON dentro de outro ...
+				
 		oChild := BSONTOJ(@cBSON)
-
 		oRet[cName] := oChild
 	
-	ElseIf nElement == 4 // BSON ARRAY 
-
-		oChild := BSONTOJ(@cBSON)
+	ElseIf nElement == 4
         
-		// Iniciaiza com Array vazio 
+		// "\x04" e_name document	Array
+		
+		oChild := BSONTOJ(@cBSON)
 		oRet[cName] := { }
 
 		If oChild != NIL      
@@ -421,20 +484,30 @@ While len(cBSON) > 0
 			
 		Endif
 
+	ElseIf nElement == 5 
+	
+		// "\x05" e_name binary	Binary data
+		// binary	::=	int32 subtype (byte*)	Binary - The int32 is the number of bytes in the (byte*).
+
+		UserException("BSONTOJ ERROR -- BINARY DATA NOT IMPEMENTED")
+	
+	ElseIF nElement == 6
+	
+		// 0x06 Undefined (value) — Deprecated
+		// Por compatibilidade gera um valor NIL no JSON 
+		oRet[cName] := NIL 
+
 	ElseIf nElement == 7 
 
-		// 12 bytes Object ID
-		// Por hora string em hexadecimal 	
-
-		cObjId := substr(cBSON,1,12)
-		cHexID := ''
-		For nI := 1 to 12 
-			cHexID += DEC2HEX(asc(substr(cObjId,nI,1)))
-		Next		                        
-		oRet[cName] := '#OBJID_'+cHexID
+		// "\x07" e_name (byte*12)	ObjectId
+		// Recuepera tring prefixada em hexadecimal 	
+		oRet[cName] := '#OBJID_'+Str2Hex(substr(cBSON,1,12))
 		cBSON := substr(cBSON,13)
 
-	ElseIf nElement == 8 // Boolean
+	ElseIf nElement == 8
+
+		// "\x08" e_name "\x00"	Boolean "false"
+		// "\x08" e_name "\x01"	Boolean "true"
 
 		If asc( substr(cBSON,1,1) ) == 1
 			oRet[cName] := .T.
@@ -443,25 +516,84 @@ While len(cBSON) > 0
 		Endif	
 		cBSON := substr(cBSON,2)
 
-	ElseIf nElement == 16 // INT32
+	ElseIf nElement == 9 
+
+		// 	"\x09" e_name int64	UTC datetime
+		// -- por hora string prefixada em hexadecimal
+
+		oRet[cName] := '#UTC64_'+Str2Hex(substr(cBSON,1,8))
+		cBSON := substr(cBSON,9)
+
+	ElseIF nElement == 10
+	
+		// "\x0A" e_name	Null value
+		
+		oRet[cName] := NIL 
+
+	ElseIf nElement == 11 
+
+		// "\x0B" e_name cstring cstring
+		// Regular expression - The first cstring is the regex pattern, the second is the regex options string. 
+		// Options are identified by characters, which must be stored in alphabetical order. 
+		// Valid options are 'i' for case insensitive matching, 'm' for multiline matching, 'x' for verbose mode, 
+		// 'l' to make \w, \W, etc. locale dependent, 's' for dotall mode ('.' matches everything), 
+		// and 'u' to make \w, \W, etc. match unicode.
+		 
+		UserException("BSONTOJ ERROR -- REGEXP DATA NOT IMPEMENTED")
+		 
+	ElseIF nElement == 12 
+	
+		// "\x0C" e_name string (byte*12)	DBPointer — Deprecated
+		UserException("BSONTOJ ERROR -- DBPOINTER DATA DEPRECATED | NOT IMPEMENTED")
+
+	ElseIf nElement == 13 
+	
+		// 	"\x0D" e_name string	JavaScript code		
+
+		cValue := GetBString(@cBSON)
+		oRet[cName] := '#JSSTR_'+cValue                   
+
+	ElseIf nElement == 14
+	
+		// "\x0E" e_name string	Symbol. Deprecated
+		UserException("BSONTOJ ERROR -- SYMBOL DATA DEPRECATED | NOT IMPEMENTED")
+		
+	ElseIf nElement == 15
+	
+		// "\x0F" e_name code_w_s	JavaScript code w/ scope
+		UserException("BSONTOJ ERROR -- JAVASCRIPT CODE W/ SCOPE NOT IMPEMENTED")
+
+	ElseIf nElement == 16 
+        
+        // "\x10" e_name int32	32-bit integer
+	    // Converte para valor numérico em AdvPL
 
 		oRet[cName] := bin2l( substr(cBSON,1,4) )
 		cBSON := substr(cBSON,5)
 		
-	ElseIf nElement == 18 // INT64 -- por hora em hexadecimal
-                       
-		cINT64 := substr(cBSON,1,8)
-		cHex64 := ''
-		For nI := 1 to 8 
-			cHex64 += DEC2HEX(asc(substr(cINT64,nI,1)))
-		Next		                        
-		oRet[cName] := '#INT64_'+cHex64
+	ElseIF nElement == 17
+	
+		// "\x11" e_name uint64	Timestamp
 		
+		oRet[cName] := '#TSU64_'+Str2Hex(substr(cBSON,1,8))
 		cBSON := substr(cBSON,9)
+		
+	ElseIf nElement == 18 
+	                      
+		// "\x12" e_name int64	64-bit integer
+		// -- por hora string prefixada em hexadecimal
+
+		oRet[cName] := '#INT64_'+Str2Hex(substr(cBSON,1,8))
+		cBSON := substr(cBSON,9)
+
+	ElseIF nElement == 19 
+	
+		// 	"\x13" e_name decimal128	128-bit decimal floating point
+		UserException("BSONTOJ ERROR -- 128-BIT DECIMAL FLOATING POINT NOT IMPEMENTED")
 
 	Else
 
-		USerException("Element ["+cName+"] Type ["+cValToChar(nElement)+"] NOT IMPLEMENTED")
+		USerException("Element ["+cName+"] Type 0x"+DEC2HEX(nElement)+" UNKNOW / NOT IMPLEMENTED")
 
 	Endif
 
@@ -511,6 +643,4 @@ cRet := substr(cBSON,5,nSize-1)
 cBSON := substr(cBSON,nSize+5)
 
 Return cRet 
-
-
 
