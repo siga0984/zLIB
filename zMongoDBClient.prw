@@ -71,6 +71,11 @@ CLASS ZMONGODBCLIENT FROM LONGNAMECLASS
    METHOD AuthScramSha1()
    
    METHOD RunCommand()
+   METHOD Ping()
+   METHOD BuildInfo()
+   METHOD collStats()
+   METHOD dbStats() 
+   METHOD getLog()
 
 ENDCLASS
 
@@ -371,6 +376,17 @@ IF ::lVerbose
 	conout("Return Flags ...... "+cValToChar(iRetFlags))
 	conout('Section Type ...... '+cValToChaR(nSecType))
 Endif
+
+While nRecv < iRetLen 
+
+	// Trata fragmentação de pacote 
+	cBuffer := ''
+	nBuffSize := ::oSocket:Receive(@cBuffer,2000)
+
+	cRecvMsg += cBuffer
+	nRecv += nBuffSize
+	
+Enddo
 
 If nSecType == 0 
 
@@ -1025,3 +1041,55 @@ Next
 
 Return cSaltedPdw
 
+
+// ----------------------------------------
+// Manda uma instruçao apenas pra ver se o banco está conectado  
+
+METHOD Ping() CLASS ZMONGODBCLIENT 
+Local oCmd := JSONOBJECT():new()
+oCmd['ping'] := 1
+Return ::RunCommand('ping',oCmd)
+
+// ----------------------------------------
+// Retorna informações sobre ao Build do MongoDB 
+
+METHOD BuildInfo() CLASS ZMONGODBCLIENT 
+Local oCmd := JSONOBJECT():new()
+oCmd['buildInfo'] := 1
+Return ::RunCommand('buildInfo',oCmd)
+
+// ----------------------------------------
+// Retorna informações de armazenamento de uma determinada collection 
+// Recee a collection como parametro, e nScale para a escala de retorno 
+// default = 1 ( Bytes ). Para KBytes informe 1024, para MB informe 1024*2014
+
+METHOD collStats(cCollection,nScale) CLASS ZMONGODBCLIENT 
+Local oCmd := JSONOBJECT():new()
+
+oCmd['collStats'] := cCollection
+
+If nScale != NIL 
+	oCmd['scale'] := nScale
+Endif
+
+Return ::RunCommand('collStats',oCmd)
+
+// ----------------------------------------
+// Retorna as estatisticas de armazenamento do database atual 
+
+METHOD dbStats(nScale) CLASS ZMONGODBCLIENT 
+Local oCmd := JSONOBJECT():new()
+
+oCmd['dbStats'] := 1
+
+If nScale != NIL 
+	oCmd['scale'] := nScale
+Endif
+
+Return ::RunCommand('dbStats',oCmd)
+
+
+METHOD getLog(cLogType) CLASS ZMONGODBCLIENT 
+Local oCmd := JSONOBJECT():new()
+oCmd['getLog'] := cLogType
+Return ::RunCommand('getLog',oCmd)
