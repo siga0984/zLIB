@@ -32,10 +32,11 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 
 ------------------------------------------------------------------------------------------- */
 
-
-
 #include 'protheus.ch'
 #include 'zlib.ch' 
+
+// Classe de Conexao SSL ainda nao implementada
+// #define SSL_SUPPORT
 
 /* ======================================================
 
@@ -52,12 +53,22 @@ CLASS ZMONGODBCLIENT FROM LONGNAMECLASS
    DATA cDatabase
    DATA oSocket
    DATA lVerbose
+   DATA lSecure
+   DATA cUserName    
+   DATA cUserPsw
+   DATA cAuthDB  
+   DATA oIsMasterInfo
    
    METHOD New()
    METHOD Connect()
    METHOD Disconnect()
    METHOD SetDB()
    METHOD SetVerbose()
+   METHOD SetSecure()
+   METHOD SetUserName()
+   METHOD SetUSerPsw()
+   METHOD SetAuthDB()
+   METHOD AuthScramSha1()
    
    METHOD RunCommand()
 
@@ -68,12 +79,38 @@ ENDCLASS
 
 METHOD New() CLASS ZMONGODBCLIENT 
 ::lVerbose := .F.
+::lSecure  := .F.
+::cDatabase := 'db'
+::cUserName := ''
+::cUserPsw  := ''
+::cAuthDB   := ''
 Return self
+
+// ----------------------------------------
+METHOD SetUserName(cUsr) CLASS ZMONGODBCLIENT 
+::cUserName := cUsr
+Return
+
+// ----------------------------------------
+
+METHOD SetUSerPsw(cPsw) CLASS ZMONGODBCLIENT 
+::cUserPsw := cPsw
+Return
+
+// ----------------------------------------
+
+METHOD SetAuthDB(cDb) CLASS ZMONGODBCLIENT 
+::cAuthDb := cDB
+Return
 
 // ----------------------------------------
 
 METHOD Connect(cServer,nPort) CLASS ZMONGODBCLIENT 
 Local iStat
+Local oIsMaster
+Local oResponse
+Local nI , aAuthM
+Local lOk := .T.
 
 If ::oSocket != NIL 
 	UserException("ZMONGODBCLIENT ALREADY CONNECTED") 
@@ -91,7 +128,11 @@ Else
 	::nPort := 	nPort
 Endif
 
-::oSocket   := tSocketClient():New()
+If ::lSecure
+	::oSocket   := tSSLClient():New()
+Else
+	::oSocket   := tSocketClient():New()
+Endif
 
 // Abre uma conexão TCP com o MongoDB
 iStat := ::oSocket:Connect( ::nPort , ::cServer , 1000 )
@@ -102,7 +143,88 @@ IF iStat < 0
 	Return .F.	
 Endif
 
-Return .T.
+// Primeira etapa da conexão -- enviar um isMaster com os detalhes de quem está conectando 
+
+oIsMaster := JSONOBJECT():new()
+oIsMaster['isMaster'] := 1
+
+If !empty(::cUserName) 
+	If Empty(::cAuthDB)
+		oIsMaster['saslSupportedMechs'] := ::cDatabase + '.' + ::cUserName
+	Else
+		oIsMaster['saslSupportedMechs'] := ::cAuthDB + '.' + ::cUserName
+	Endif
+Endif
+
+oIsMaster['client'] := JSONOBJECT():new()
+oIsMaster['client']['application'] := JSONOBJECT():new()
+oIsMaster['client']['application']['name'] := 'TOTVS Application Server'
+
+oIsMaster['client']['driver'] := JSONOBJECT():new()
+oIsMaster['client']['driver']['name'] := 'AdvPL'
+oIsMaster['client']['driver']['version'] := '1.1.1'
+
+oIsMaster['client']['os'] := JSONOBJECT():new()
+oIsMaster['client']['os']['type'] := 'Windows'
+oIsMaster['client']['os']['name'] := 'Microsoft Windows 10'
+oIsMaster['client']['os']['architecture'] := 'x86_64'
+oIsMaster['client']['os']['version'] := '10.0 (build 18362)'
+
+// Submete o comando
+oResponse := ::RunCommand('isMaster',oIsMaster)
+
+If oResponse['ok'] == 1
+
+	// Guarda as informações retornadas 
+	::oIsMasterInfo := oResponse        
+
+	/*
+	{ 
+	  "ismaster":true,
+	  "maxMessageSizeBytes":48000000,
+	  "logicalSessionTimeoutMinutes":30,
+	  "maxWriteBatchSize":100000,
+	  "localTime":"#UTC64_33BEDEBA6E010000",
+	  "connectionId":35,
+	  "maxWireVersion":8,
+	  "saslSupportedMechs":["SCRAM-SHA-256","SCRAM-SHA-1"],
+	  "maxBsonObjectSize":16777216,
+	  "readOnly":false,
+	  "ok":1,
+	  "minWireVersion":0
+	}
+	*/
+
+	// Se foi informado usuario, deve chegar a informação dos métodos 
+	// de autenticaçao suportados. 
+	aAuthM := oResponse['saslSupportedMechs']
+	
+	If !Empty(aAuthM)
+		
+		// Se foi retornada alugma informação de autenticação, 
+		// eu informei usuario para autentica e pedi os metodos
+		// disponives. Varre o retorno procurando por um metodo implemetado
+
+		For nI := 1 to len(aAuthM)
+			IF aAuthM[nI] == 'SCRAM-SHA-1'
+				lOk := ::AuthScramSha1()
+			Endif
+		Next
+
+    Endif
+
+Else
+
+	conout('ERROR : '+oResponse:ToJson())
+	lOk := .F.
+
+Endif
+
+IF !lOk
+	::Disconnect()
+Endif
+
+Return lOk
 
 
 // ----------------------------------------
@@ -124,6 +246,18 @@ Return
 
 METHOD SetVerbose(lSet) CLASS ZMONGODBCLIENT 
 ::lVerbose := lSet
+Return
+
+// ----------------------------------------
+
+METHOD SetSecure(lSet) CLASS ZMONGODBCLIENT 
+#ifdef SSL_SUPPORT
+	::lSecure := lSet
+#else
+	If lSet
+		UserException("ZMONGODBCLIENT -- SSL SUPPORT NOT AVAILABLE")
+	Endif	
+#endif
 Return
 
 // ----------------------------------------
@@ -179,8 +313,10 @@ cSendCmd += cSection         // Seção 0 com o comando a ser executado
 nSend := ::oSocket:Send(cSendCmd)   
 
 // Mostra no console os dados enviados
-IF ::lVerbose
-	conout("ZMONGODBCLIENT | Sent Bytes      ["+cValToChar(nSend)+"]")
+IF ::lVerbose       
+	conout('')
+	conout("ZMONGODBCLIENT::RunCommand("+cCommand+") : "+oJsonCmd:ToJson())
+	conout("ZMONGODBCLIENT::RunCommand | Sent Bytes ["+cValToChar(nSend)+"]")
 	conout(STR2HexDmp(cSendCmd))
 Endif
 
@@ -206,17 +342,16 @@ iRetFlags  := bin2l( substr(cRecvMsg,17,4) )
 // Isola a(s) seção(ões) de resposta 
 cRetSections := substr(cRecvMsg,21)
 
+nSecType := ASC(left(cRetSections,1))
+
 IF ::lVerbose
 	conout("Repsonse Length ... "+cValToChar(iRetLen))
 	conout("Request ID ........ "+cValToChar(iRetId))
 	conout("ResponseTo ........ "+cValToChar(iRetTo))
 	conout("Return Op Code..... "+cValToChar(iRetCode))
 	conout("Return Flags ...... "+cValToChar(iRetFlags))
+	conout('Section Type ...... '+cValToChaR(nSecType))
 Endif
-
-nSecType := ASC(left(cRetSections,1))
-
-conout('Section Type ...... '+cValToChaR(nSecType))
 
 If nSecType == 0 
 
@@ -224,6 +359,11 @@ If nSecType == 0
     // Transforma o BSON em um objeto JSON 
     
 	oResponse := BSONTOJ(substr(cRetSections,2))
+
+	IF ::lVerbose
+		conout('JSON Response ..... '+oResponse:ToJsOn())
+		conout('')
+    Endif
 	
 Else 
 
@@ -235,6 +375,138 @@ Else
 Endif
 
 Return oResponse
+
+// ----------------------------------------
+
+METHOD AuthScramSha1() CLASS ZMONGODBCLIENT 
+Local oAuth , oResponse
+Local lDone 
+Local cPayLoad  := '' 
+Local nCvId, aTmp, nI 
+Local cBuff := ''
+Local cSalt := ''
+Local cSrvNonce := ''
+Local nInteract := 0 
+Local cAuthMsg := ''
+Local cCliNonce := ''
+Local cCliProf := ''
+Local cSaltedPsw := ''
+Local cHashedPsw := ''
+Local cCliKey := ''
+Local cStoredKey := ''
+
+// Cria um Client Nonce ( 24 bytes ) 
+// Ja encodado em Base64
+cCliNonce := NewNonce()
+
+// Salva a primeira parte da mensagem de autenticacao 
+cAuthMsg := 'n='+::cUserName+',r='+cCliNonce
+
+oAuth := JSONOBJECT():new()
+oAuth['saslStart'] := 1
+oAuth['mechanism'] := 'SCRAM-SHA-1'
+oAuth['payload'] := '#BIN00_' + 'n,,'+cAuthMsg
+
+// Primeira etapa do Handshake de autenticação 
+// Envia o nome do usuario e o Client "nonce"
+oResponse := ::RunCommand('saslStart',oAuth)
+
+IF oResponse['ok'] == 1
+
+	nCvId := oResponse['conversationId']
+	lDone := oResponse['done']
+	cPayLoad := oResponse['payload']
+	cPayLoad := substr(cPayLoad,8)
+
+Else
+
+	conout('ERROR : '+oResponse:ToJson())
+	UserException("AUTHSCRAMSHA1 - STEP 1 ERROR")
+
+Endif
+
+// Segunda etapa, recebe o Server "nonce" apos o client Nonce, 
+// recebe o SALT para usar com a senha 
+
+// Acrescenta a resposta do servidor para gerar a "Client Proof"
+cAuthMsg +=  ',' + cPayLoad
+
+// Desmonta o payload para pegar os parametros
+
+aTmp := StrTokarr2(cPayLoad,',')
+For nI := 1 to len(aTmp)
+	cBuff := aTmp[nI]
+	IF left(cBuff,2) == 'r='
+		cSrvNonce := substr(cBuff,3)
+	ElseIF left(cBuff,2) == 's='
+		cSalt := decode64(substr(cBuff,3))
+	ElseIf left(cBuff,2) == 'i='
+		nInteract  := val(substr(cBuff,3))
+	Endif
+Next
+
+// TODO 
+// Implementar um cache de SALT, para evitar recalcular 
+// o Salted Password a cada conexão 
+// O MongoDB gera o mesmo SALT por um periodo de tempo 
+
+// Hash sobre o usuario e a senha 
+cHashedPsw := MD5(  ::cUserName + ":mongo:" + ::cUserPsw )
+
+// Aplica o Salt informado sobre o Hash 
+cSaltedPsw := SaltPsw( cHashedPsw , cSalt , nInteract)
+
+// Gera o Client Key
+cCliKey := HMAC( "Client Key", cSaltedPsw ,  3 , 1  ) // SHA1, RAW
+
+// Gera o Stored Key 
+cStoredKey := SHA1(cCliKey,1)
+                                       
+// Acrescenta mais uma parte do retorno na mensagem de autenticacao 
+cAuthMsg += ',c=biws,r='
+cAuthMsg += cSrvNonce
+
+// Cria a Client Signature
+cClientSig := HMAC(  cAuthMsg , cStoredKey ,  3 , 1 ) // SHA1  RAW
+
+// Monta o Client Proof sobre a Client Key e a Client Signature
+For nI := 1 to len( cCliKey )
+	cCliPRof += chr(  NXOR(  asc(substr(cCliKey,nI,1)) , asc(substr(cClientSig,nI,1)) )  )
+Next  
+
+FreeObj(oAuth)
+
+// Envia a Client PRoof para o Mongo DB Validar
+
+oAuth := JSONOBJECT():new()
+oAuth['saslContinue'] := 1
+oAuth['conversationId'] := nCvId
+oAuth['payload'] := '#BIN00_' + 'c=biws,r='+cSrvNonce+',p='+encode64(cCliPRof)	
+
+// Submete o comando
+oResponse := ::RunCommand('saslContinue',oAuth)
+
+// TODO  : Ver se o código de verificação retornado está OK 
+
+oAuth := JSONOBJECT():new()
+oAuth['saslContinue'] := 1
+oAuth['conversationId'] := nCvId
+oAuth['payload'] := '#BIN00_' 
+
+// Submete o comando
+oResponse := ::RunCommand('saslContinue',oAuth)
+
+// {"conversationId":1,"done":true,"payload":"#BIN00_","ok":1}
+
+IF oResponse['ok'] == 1
+	Return .T. 
+Endif
+
+conout('ERROR : '+oResponse:ToJson())
+UserException("AUTHSCRAMSHA1 - STEP 2 ERROR")
+
+Return .F. 
+
 
 // ----------------------------------------
 // Funcão auxiliar JTOBSON
@@ -310,6 +582,13 @@ For nI := 1 to len(aNames)
 			For nJ := 1 to len(xValue) STEP 2 
 				cBson += chr( __hextodec( substr(xValue,nJ,2)) )
 			Next		
+		ElseIf left(xValue,7) == '#BIN00_'
+			cBson += chr(5) // Binary subtype 0 - generic
+			cBson += ( cName + chr(0) )
+			xValue := substr(xValue,8)
+			cBson += l2bin( len(xValue) )
+			cBson += chr(0)
+			cBson += xValue
 		Else
 			// String mesmo...
 			cBson += chr(02) // BSON UTF8 String
@@ -410,7 +689,7 @@ STATIC Function BSONTOJ(cBSON)
 Local oRet := JsonObject():new()
 Local nSize := bin2l( substr(cBSON,1,4) ) // Tamanho do objeto JSON
 Local cSaved , oChild
-Local cName , cValue
+Local cName , cValue, iSize
 Local nI , aNames
 
 IF nSize < 5
@@ -486,10 +765,19 @@ While len(cBSON) > 0
 
 	ElseIf nElement == 5 
 	
-		// "\x05" e_name binary	Binary data
+		// "\x05" e_name binary	-- Binary data
 		// binary	::=	int32 subtype (byte*)	Binary - The int32 is the number of bytes in the (byte*).
+		// Implementar pelo menos o subtipo 00 - generic
 
-		UserException("BSONTOJ ERROR -- BINARY DATA NOT IMPEMENTED")
+		iSize := bin2l( substr(cBSON,1,4) )		
+		if ASC(substr(cBSON,5,1)) == 0
+			cBSON := substr(cBSON,6)
+			oRet[cName] := '#BIN00_'+substr(cBSON,1,iSize)
+			cBSON := substr(cBSON,iSize+1)
+		Else
+			UserException("BSONTOJ ERROR -- BINARY DATA -- SUBTYPE "+cValToChar(ASC(substr(cBSON,5,1))) +" -- NOT IMPEMENTED")
+		Endif
+		
 	
 	ElseIF nElement == 6
 	
@@ -643,4 +931,53 @@ cRet := substr(cBSON,5,nSize-1)
 cBSON := substr(cBSON,nSize+5)
 
 Return cRet 
+
+// Cria um Client "nonce" de 24 bytes
+// Já retorna encodado em Base64
+STATIC Function NewNonce()
+Local cNonce := ''
+While len(cNonce) < 24
+	cNonce += chr(randomize(0,256))
+Enddo
+Return Encode64(cNonce)
+
+
+/* ---------------------------------------------------------------
+"Salga" o Hashed Password com o SALT que o MongoDB retornou 
+--------------------------------------------------------------- */
+
+STATIC Function SaltPsw( cHashedPsw , cSaltStr , nInt)
+Local cStartKey, cOutput, aOutPut, nI , nJ , cIntermed
+Local cSaltedPdw := ''
+
+// Monta o Salt de 20 bytes 
+// 16 bytes do Salt, mais "0001"
+cStartKey := cSaltStr+chr(0)+chr(0)+chr(0)+chr(1)
+
+// Primeiro Hash
+cOutput := HMAC(  cStartKey , cHashedPsw , 3 , 1  ) // SHA1, RAW
+
+// Começa a montar o retorno 
+aOutPut := {}
+For nI := 1 to len(cOutput)
+	aadd(aOutPut,asc(substr(cOutput,nI,1)))
+Next
+
+// Salva o primeiro hash como base para as interações
+cIntermed := cOutput
+
+// Aplica o Hash pelo numero de interações informado
+For nI := 2 to nInt
+	cIntermed := HMAC( cIntermed, cHashedPsw ,  3 , 1  ) // SHA1, RAW
+	For nJ := 1 to len(cIntermed)
+		aOutPut[nJ]	:= NXOR( aOutPut[nJ] , asc(substr(cIntermed,nJ,1)) )
+	Next
+Next
+
+// Monta o Salted Password
+For nI := 1 to len(aOutPut)
+	cSaltedPdw += chr(aOutPut[nI])
+Next
+
+Return cSaltedPdw
 
