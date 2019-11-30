@@ -87,23 +87,30 @@ METHOD New() CLASS ZMONGODBCLIENT
 Return self
 
 // ----------------------------------------
+// Define o usuário para autenticar no MongoDB
+
 METHOD SetUserName(cUsr) CLASS ZMONGODBCLIENT 
 ::cUserName := cUsr
 Return
 
 // ----------------------------------------
+// Define a senha de autenticação do usuario 
 
 METHOD SetUSerPsw(cPsw) CLASS ZMONGODBCLIENT 
 ::cUserPsw := cPsw
 Return
 
 // ----------------------------------------
+// Seta o banco de dados a ser usado para autenticar o usuario 
 
 METHOD SetAuthDB(cDb) CLASS ZMONGODBCLIENT 
 ::cAuthDb := cDB
 Return
 
 // ----------------------------------------
+// Conecta com o MongoDB 
+// Por hora apenas uma instancia ( single ) 
+// Default = localhost , porta 27017
 
 METHOD Connect(cServer,nPort) CLASS ZMONGODBCLIENT 
 Local iStat
@@ -149,12 +156,18 @@ oIsMaster := JSONOBJECT():new()
 oIsMaster['isMaster'] := 1
 
 If !empty(::cUserName) 
+	// Se eu estou informando usuario , eu quero me autenticar
+	// aproveita aa mensagem atual para perguntar pro MongoDB
+	// quais sao os metdos de autenticação que esse usuário suporta 
 	If Empty(::cAuthDB)
 		oIsMaster['saslSupportedMechs'] := ::cDatabase + '.' + ::cUserName
 	Else
 		oIsMaster['saslSupportedMechs'] := ::cAuthDB + '.' + ::cUserName
 	Endif
 Endif
+
+// Detalhamento das informações do client para handshake
+// https://github.com/mongodb/specifications/blob/master/source/mongodb-handshake/handshake.rst#connection-handshake
 
 oIsMaster['client'] := JSONOBJECT():new()
 oIsMaster['client']['application'] := JSONOBJECT():new()
@@ -164,6 +177,8 @@ oIsMaster['client']['driver'] := JSONOBJECT():new()
 oIsMaster['client']['driver']['name'] := 'AdvPL'
 oIsMaster['client']['driver']['version'] := '1.1.1'
 
+// TODO - Identificar plataforma para enviar os dados adequados 
+// por hora chumbado Windows mesmo... 
 oIsMaster['client']['os'] := JSONOBJECT():new()
 oIsMaster['client']['os']['type'] := 'Windows'
 oIsMaster['client']['os']['name'] := 'Microsoft Windows 10'
@@ -180,6 +195,7 @@ If oResponse['ok'] == 1
 
 	/*
 	{ 
+	  "ok":1,
 	  "ismaster":true,
 	  "maxMessageSizeBytes":48000000,
 	  "logicalSessionTimeoutMinutes":30,
@@ -190,7 +206,6 @@ If oResponse['ok'] == 1
 	  "saslSupportedMechs":["SCRAM-SHA-256","SCRAM-SHA-1"],
 	  "maxBsonObjectSize":16777216,
 	  "readOnly":false,
-	  "ok":1,
 	  "minWireVersion":0
 	}
 	*/
@@ -237,18 +252,22 @@ Endif
 Return
 
 // ----------------------------------------
+// Define o nome do banco que será usado no MongoDB 
 
 METHOD SetDB(cDB) CLASS ZMONGODBCLIENT 
 ::cDatabase := cDB
 Return
 
 // ----------------------------------------
+// Habilita o modo verbose de operação da classe client
 
 METHOD SetVerbose(lSet) CLASS ZMONGODBCLIENT 
 ::lVerbose := lSet
 Return
 
 // ----------------------------------------
+// Seta uso de conexão segura (SSL ) 
+// Depende de implementaçao de nova classe no APPServer
 
 METHOD SetSecure(lSet) CLASS ZMONGODBCLIENT 
 #ifdef SSL_SUPPORT
@@ -486,7 +505,32 @@ oAuth['payload'] := '#BIN00_' + 'c=biws,r='+cSrvNonce+',p='+encode64(cCliPRof)
 // Submete o comando
 oResponse := ::RunCommand('saslContinue',oAuth)
 
-// TODO  : Ver se o código de verificação retornado está OK 
+// Confirma se o código de verificação retornado está OK 
+
+IF oResponse['ok'] == 1
+
+	cPayLoad := oResponse['payload']
+	cPayLoad := substr(cPayLoad,8)
+
+	cSrvKey := HMAC("Server Key",cSaltedPsw ,  3 , 1  ) // SHA1, RAW
+
+	cValid := HMAC(cAuthMsg,cSrvKey , 3 , 1 ) // SHA1, RAW
+
+	If 	!(cPayLoad  == 'v='+encode64(cValid))
+
+		conout("Received Validation Code .... "+cPayLoad)
+		conout("Expected Validation Code .... "+'v='+encode64(cValid))
+		
+		UserException("VERIFICATION CODE MISMATCH")
+
+	Endif
+
+Else
+
+	conout('ERROR : '+oResponse:ToJson())
+	UserException("AUTHSCRAMSHA1 - STEP 2 ERROR")
+
+Endif
 
 oAuth := JSONOBJECT():new()
 oAuth['saslContinue'] := 1
@@ -503,7 +547,7 @@ IF oResponse['ok'] == 1
 Endif
 
 conout('ERROR : '+oResponse:ToJson())
-UserException("AUTHSCRAMSHA1 - STEP 2 ERROR")
+UserException("AUTHSCRAMSHA1 - STEP 3 ERROR")
 
 Return .F. 
 
