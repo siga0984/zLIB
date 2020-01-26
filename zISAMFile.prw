@@ -172,12 +172,6 @@ Endif
 // Atualiza o numero do registro atual 
 ::nRecno := nRec
 
-If ::nIndexOrd > 0 
-	// Eu tenho indice ativo, sincroniza a posicao do indice 
-	// com a posicao do registro atual 
-	::oCurrentIndex:SetResync()
-Endif
-
 // Traz o registro atual para a memória
 ::_ReadRecord()
 
@@ -394,7 +388,6 @@ Endif
 ::nIndexOrd := nOrd
 If ::nIndexOrd > 0 
 	::oCurrentIndex := ::aIndexes[::nIndexOrd]
-	::oCurrentIndex:SetResync()
 Else
 	::oCurrentIndex := NIL
 Endif
@@ -646,7 +639,7 @@ Else
 	
 	If lAll 
 		// Se é para importar tudo, pega desde o primeiro registro 
-		_oDBF::GoTop()
+		_oDBF:GoTop()
 	Endif
 	
 	While !_oDBF:EOF()

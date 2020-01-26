@@ -109,6 +109,7 @@ CLASS ZDBFFILE FROM ZISAMFILE
   DATA cMemoExt             // Identificador (extensao) do tipo do campo MEMO
   DATA lExclusive           // Arquivo aberto em modo exclusivo ?
   DATA lUpdPend             // Flag indicando update pendente 
+	DATA lNewRecord           // Flag indicando a inserção de um registro
   DATA lDeleted				// Indicador de registro corrente deletado (marcado para deleção ) 
   DATA lSetDeleted          // Filtro de registros deletados ativo 
 
@@ -511,6 +512,7 @@ _Super:_InitVars()
 ::dLastUpd    := ctod("")
 ::aPutRecord  := {}
 ::lUpdPend    := .F. 
+::lNewRecord  := .F.
 ::lDeleted    := .F. 
 ::lSetDeleted := .F. 
 ::nRecno      := 0
@@ -904,7 +906,7 @@ Endif
 
 // Cria uma pendencia de update 
 // O update vai fazer a inserção no final do arquivo 
-::lUpdPend := .T. 
+::lNewRecord := .T.
 
 // Faz o update inserir o registro em branco 
 IF ::Update()
@@ -937,8 +939,8 @@ If ( ::lEOF )
 	Return
 Endif
 
-If !::lUpdPend
-	// Nao tem update pendente, nao faz nada
+If !::lUpdPend .and. !::lNewRecord
+	// Nao tem insert e nao tem update pendente, nao faz nada
 	Return
 Endif
 
@@ -1076,7 +1078,15 @@ If Date() > ::dLastUpd
 Endif
 
 // Agora que o registro está atualizado, atualiza os indices 
-aEval(::aIndexes , {|oIndex| oIndex:UpdateKey() })
+if (::lNewRecord)
+	// Inserção de registro, desliga o flag de inserção 
+	::lNewRecord := .F. 
+	// Insere a nova chave em todos os indices abertos
+	aEval(::aIndexes , {|oIndex| oIndex:InsertKey() })
+Else
+	// Atualiza a chave de todos os indices abertos
+	aEval(::aIndexes , {|oIndex| oIndex:UpdateKey() })
+Endif
 
 Return .T. 
 
