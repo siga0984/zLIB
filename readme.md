@@ -41,6 +41,5 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 
 ------------------------------------------------------------------------------------------- */
 
-
-
+> Protheus, TOTVS e Microsiga são marcas registradas pertencentes a TOTVS S/A. A criação, utilização e distribuição deste código não tem nenhuma relação com a TOTVS S/A ou suas afiliadas.
 
