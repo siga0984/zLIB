@@ -82,6 +82,8 @@ If lOnlyNum
 		// Impar, comeca com CODE A
 		aadd(aSequence , 103 )
 		aadd(aSequence , val(left(cBarData,1))+16 )
+		// E troca para CODE C
+		aadd(aSequence , 99 )
 		cBarData := substr(cBarData,2)
 	Else
 		// Par, codifica direto em Code C
