@@ -58,26 +58,32 @@ METHOD NEW() CLASS zBarCode128
 Return self
 
 METHOD Generate(cBarData) CLASS zBarCode128
-Local lOnlyNum
+
 Local nTam
 Local cBarData
 Local nCheck
 Local aSequence := {}                                   
+Local nCntNum   := 0
+Local nSeqNum := 0
+Local nSeqAlpha := 0
+
 
 If empty(cBarData)
 	Return NIL
 Endif
 
 nTam := len(cBarData)
-lOnlyNum := IsNumbers(cBarData)
 
-If lOnlyNum
+// Conta numeros do dado e sequencia numerica
+CountNumber(cBarData,@nCntNum,@nSeqNum,@nSeqAlpha)
+
+If nTam == nCntNum
 	
-	// Geração numérica
+	// Geração numérica - Somente numeros
 	// pode alternar Code A e Code C para zeros
 	// Code C trabalha sempre em blocos de 2 numeros
 	// Boa pratica : Com numero de digitos impar, coloca o primeiro
-	// digito com Code A , e as demaps tuplas em Code C
+	// digito com Code A , e as demais tuplas em Code C
 	IF (nTam % 2) != 0
 		// Impar, comeca com CODE A
 		aadd(aSequence , 103 )
@@ -97,6 +103,42 @@ If lOnlyNum
 		cBarData := substr(cBarData,3)
 	Enddo
 	
+ElseIf IsNumbers(left(cBarData,1)) .AND. nSeqNum+nSeqAlpha == nTam .and. nSeqNum > 4
+
+	// Geração optimizada para numeros com letras 
+	// Se o codigo começa com mais de 4 numeros, e tem letras depois 
+  // inicia ele com code C , depois troca para B 
+
+	IF (nSeqNum % 2) != 0
+		// Impar, comeca com CODE A
+		aadd(aSequence , 103 )
+		aadd(aSequence , val(left(cBarData,1))+16 )
+		// E troca para CODE C
+		aadd(aSequence , 99 )
+		cBarData := substr(cBarData,2)
+	Else
+		// Par, codifica direto em Code C
+		aadd(aSequence , 105 )
+	Endif
+
+	// Codifica os numeros em pares
+	While isNumbers(left(cBarData,2)) 
+		nTupla := val(left(cBarData,2))
+		aadd(aSequence , nTupla )
+		cBarData := substr(cBarData,3)
+	Enddo
+
+	// agora codifica as letras em code B 
+
+	aadd(aSequence , 100 )
+
+	While len(cBarData) > 0 
+		cChar := left(cBarData,1)
+		nValor := GetCodeB(cChar)
+		aadd(aSequence , nValor )
+		cBarData := substr(cBarData,2)
+	Enddo
+
 Else
 
 	// Alfanumérico
@@ -301,3 +343,32 @@ STATIC Function GetCodeB(cChar)
 Local nPos := ascan(_aBar128,{|x| x[3] == cChar })
 Return _aBar128[nPos][1]
 
+// Conta quantos numeros tem nos dados
+// e conta a maior sequencia numerica consecutiva
+STATIC Function CountNumber(cBarData,nCntNum,nSeqNum,nSeqAlpha)
+Local nI , nT
+Local cChar
+Local nMaxNum := 0
+Local nMaxAlpha := 0
+nT := len(cBarData)
+nCntNum := 0
+nSeqNum := 0 
+nSeqAlpha := 0 
+For nI := 1 to  nT
+	cChar := substr(cBarData,nI,1)
+	If cChar >= '0' .and. cChar <= '9'
+		nCntNum++
+		nMaxNum++
+		nMaxAlpha := 0
+		if nMaxNum > nSeqNum
+			nSeqNum := nMaxNum
+		Endif
+	else
+		nMaxAlpha++
+		nMaxNum := 0
+		if nMaxAlpha > nSeqAlpha
+			nSeqAlpha := nMaxAlpha
+		Endif
+	Endif
+Next
+Return 
