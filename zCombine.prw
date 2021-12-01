@@ -98,7 +98,7 @@ Return self
 // elementos combinados. 
 
 METHOD GETCOMB() CLASS ZCOMBINE
-Local nI , aRet := array(6)
+Local nI , aRet := array(::nCols)
 For nI := 1 to ::nCols
 	aRet[nI] := ::aElements[ ::aControl[nI] ]
 Next 
