@@ -47,7 +47,7 @@ Funcoes de Conversao Decimal / Hexa e vice-versa
 
 STATIC __aHEX := {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'}
 
-STATIC Function DEC2HEX(nByte)
+USER Function ZDEC2HEX(nByte)
 Local nL := ( nByte % 16 )
 Local nH := ( nByte-nL) / 16
 Return __aHEX[nH+1]+__aHEX[nL+1]
@@ -55,7 +55,7 @@ Return __aHEX[nH+1]+__aHEX[nL+1]
 // ----------------------------------------
 // Converte um valor hexadecimal de 00 a FF para decimal
 
-STATIC Function HEX2DEC(cHex)
+USER  Function ZHEX2DEC(cHex)
 Local nH := asc(Upper(substr(cHex,1,1)))
 Local nL := asc(Upper(substr(cHex,2,1)))
 If nH <= 57 ;    nH -= 48 ; Else ;    nH -= 55 ; Endif

@@ -40,8 +40,8 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 
   #define zLibDateTime_CH
 
-  #xtranslate STOD( <cAnsiDate> ) => STATICCALL( ZLIBDATETIME , STOD , <cAnsiDate> ) 
-  #xtranslate DATE2DJ( <dDate> ) => STATICCALL( ZLIBDATETIME , DATE2DJ , <dDate> ) 
-  #xtranslate DJ2DATE( <nDJ> ) => STATICCALL( ZLIBDATETIME , DJ2DATE , <nDJ> ) 
+  #xtranslate STOD( <cAnsiDate> ) => U_ZSTOD( <cAnsiDate> ) 
+  #xtranslate DATE2DJ( <dDate> ) => U_ZDATE2DJ( <dDate> ) 
+  #xtranslate DJ2DATE( <nDJ> ) => U_ZDJ2DATE( <nDJ> ) 
 
 #endif

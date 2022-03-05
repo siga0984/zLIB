@@ -40,20 +40,20 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 
   #define zLibNBin_CH
 
-  #xtranslate Bin4toN( <cBin4> ) => STATICCALL( ZLIBNBIN , Bin4toN , <cBin4> ) 
-  #xtranslate NtoBin4( <nNum> )  => STATICCALL( ZLIBNBIN , NtoBin4 , <nNum>  ) 
+  #xtranslate Bin4toN( <cBin4> ) => U_Bin4toN ( <cBin4> ) 
+  #xtranslate NtoBin4( <nNum> )  => U_NtoBin4 ( <nNum>  ) 
 
-  #xtranslate Bin2toN( <cBin2> ) => STATICCALL( ZLIBNBIN , Bin2toN , <cBin2> ) 
-  #xtranslate NtoBin2( <nNum> )  => STATICCALL( ZLIBNBIN , NtoBin2 , <nNum>  ) 
+  #xtranslate Bin2toN( <cBin2> ) => U_Bin2toN ( <cBin2> ) 
+  #xtranslate NtoBin2( <nNum> )  => U_NtoBin2 ( <nNum>  ) 
 
-  #xtranslate NTOBIT8( <nNum> )  => STATICCALL( ZLIBNBIN , NTOBIT8 , <nNum>  ) 
-  #xtranslate NTOBIT16( <nNum> )  => STATICCALL( ZLIBNBIN , NTOBIT16 , <nNum>  ) 
+  #xtranslate NTOBIT8( <nNum> )  => U_NTOBIT8 ( <nNum>  ) 
+  #xtranslate NTOBIT16( <nNum> )  => U_NTOBIT16 ( <nNum>  ) 
 
-  #xtranslate NTOBITS( <nNum> )  => STATICCALL( ZLIBNBIN , NTOBITS , <nNum>  ) 
-  #xtranslate BITSTON( <nNum> )  => STATICCALL( ZLIBNBIN , BITSTON , <nNum>  ) 
+  #xtranslate NTOBITS( <nNum> )  => U_NTOBITS ( <nNum>  ) 
+  #xtranslate BITSTON( <nNum> )  => U_BITSTON ( <nNum>  ) 
 
-  #xtranslate Bit4ToHex( <cBit4> ) => STATICCALL( ZLIBNBIN , Bit4ToHex , <cBit4> ) 
+  #xtranslate Bit4ToHex( <cBit4> ) => U_Bit4ToHex ( <cBit4> ) 
 
-  #xtranslate BIT8TON( <cBit8> , <nNum> ) => STATICCALL( ZLIBNBIN , BIT8TON , <cBit8> , @<nNum> ) 
+  #xtranslate BIT8TON( <cBit8> , <nNum> ) => U_BIT8TON ( <cBit8> , @<nNum> ) 
 
 #endif

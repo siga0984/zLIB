@@ -2946,8 +2946,8 @@ Return  .T.
 METHOD SelectMask(nSetMask) CLASS ZQRCODE 
 Local nMask
 Local aNewGrid
-Local aPenalty := {}
-Local nPenalty
+//Local aPenalty := {}
+//Local nPenalty
 Local cVerFmtBits
 
 IF nSetMask != NIL 

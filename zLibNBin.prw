@@ -101,7 +101,7 @@ Return
 // Converte buffer de 4 bytes ( 32 Bits ) Big-Endian
 // ( high bit first ) no seu valor numerico  
 
-STATIC Function Bin4toN(cBin4)
+USER Function Bin4toN(cBin4)
 Local nByte1,nByte2,nByte3,nByte4
 Local nResult := 0
 
@@ -122,7 +122,7 @@ Return nResult
 // Converte valor numérico em buffer de 4 bytes ( 32 Bits ) 
 // ( High Byte First )
 
-STATIC Function NtoBin4(nNum)
+USER Function NtoBin4(nNum)
 Local cBin4 := '' , nTmp
 While nNum > 0
 	nTmp := nNum % 256 
@@ -139,7 +139,7 @@ Return cBin4
 // Converte buffer de 2 bytes ( 16 Bits ) no seu valor numerico  
 // ( High Byte First ) 
 
-STATIC Function Bin2toN(cBin4)
+USER Function Bin2toN(cBin4)
 Local nByte1,nByte2
 
 nByte1 := asc(substr(cBin4,1,1))
@@ -156,7 +156,7 @@ Return nByte2
 // Converte valor numérico (base 10 ) em buffer de 2 bytes ( 16 Bits ) 
 // ( High Byte First ) 
 
-STATIC Function NtoBin2(nNum)
+USER Function NtoBin2(nNum)
 Local nL := ( nNum % 256 ) 
 Local nH := ( nNum-nL ) / 256 
 Return chr(nH) + chr(nL)
@@ -166,12 +166,12 @@ Return chr(nH) + chr(nL)
 // para uma string binaria de 8 bytes contendo "0" e "1"
 // Tempo O(1) 
 
-STATIC Function NTOBIT8(nI)
+USER Function NTOBIT8(nI)
 Return _Bits[nI+1]
 
 // Converte um numero entre 0 e 65535 
 // para uma string binaria de 16 bytes contendo "0" e "1"
-STATIC Function NTOBIT16(nI)
+USER Function NTOBIT16(nI)
 Local n1,n2
 If nI > 255
 	n2 := ( nI%256 )
@@ -184,7 +184,7 @@ Return _Bits[n1+1]+_Bits[n2+1]
 
 // Converte qualquer numero deciml de até 14 digitos inteiros 
 // do AdvPL para formato binario em blocos de 8 bits 
-STATIC Function NTOBITS(nI)
+USER Function NTOBITS(nI)
 Local nTmp
 Local cBitsRet  := ''
 While nI >= 256  
@@ -198,7 +198,7 @@ Return cBitsRet
 
 // Converte uma string em formato binario para
 // um número em AdvPL  
-STATIC Function BitsToN(cBitStr)
+USER Function BitsToN(cBitStr)
 Local nI, nT := len(cBitStr)
 Local nMult := 1
 Local nResult := 0
@@ -213,7 +213,7 @@ Return nResult
 
 STATIC _HexSeq := '0123456789ABCDEF'
 
-STATIC Function Bit4ToHex(cBit4)
+USER Function Bit4ToHex(cBit4)
 Local nRet := 0 
 If substr(cBit4,1,1) == '1'
 	nRet += 8
@@ -236,7 +236,7 @@ Return substr(_HexSeq,nRet-1,1)
 
 STATIC _Bits := GetBits()
 
-STATIC Function GetBits()
+USER Function GetBits()
 Local aBits := {}
 
 AADD(aBits,'00000000')
@@ -505,7 +505,7 @@ Return aBits
 
 STATIC _BitHash := BuildBitHash()
 
-STATIC Function BuildBitHash()
+USER Function BuildBitHash()
 Local nI
 Local _BitHash := HMNew()
 For nI := 0 to 255
@@ -518,6 +518,6 @@ Return _BitHash
 // ----------------------------------------
 // Conversão optimizada de uma sequencia de 
 // string de 8 bits para numérico 
-STATIC Function BIT8TON(cStrBit,nNum)
+USER Function BIT8TON(cStrBit,nNum)
 Return HMGET( _BitHash,cStrBit,@nNum)
                                                           

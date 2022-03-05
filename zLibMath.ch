@@ -42,7 +42,7 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 
   /* Função zFatorial */
 
-  #xtranslate zFatorial( <nNum> ) => STATICCALL( ZLIBMATH , ZFATORIAL , <nNum> ) 
+  #xtranslate zFatorial( <nNum> ) => U_ZFATORIAL ( <nNum> ) 
 
 #endif
 

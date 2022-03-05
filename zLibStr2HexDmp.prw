@@ -47,7 +47,7 @@ Funcoes de Conversao String / Hexadecimal
 // Retorna uma uma string ASCII em formato de DUMP de memíoria
 // em Hexadecimal --  Cada linha com 16 bytes
 
-STATIC Function STR2HexDmp(cBuffer,nOffset,nLength)
+USER Function STR2HexD(cBuffer,nOffset,nLength)
 Local cHexLine := ''
 Local cCharLine := ''
 Local nI , cChar , nChar , cRet := ''
@@ -87,7 +87,7 @@ Return cRet
 // Retorna uma uma string ASCII hexadecimal representando
 // os bytes da scring informada como parametro
 
-STATIC Function STR2Hex(cBuffer,nOffset,nLength)
+USER Function STR2Hex(cBuffer,nOffset,nLength)
 Local nI , cRet := ''
 Local nTamBuff := len(cBuffer)
 

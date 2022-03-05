@@ -42,7 +42,7 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 
   /* Setar observações para o processo atual no Monitor do Protheus */
 
-  #xtranslate SetMntObs( <cObs> ) => PtInternal( 1 , <cObs> )
+  #xtranslate SetMntObs( <cObs> ) => conout("SetMntObs()", <cObs> )
 
   /* constante PI com 8 casas decimais */
 

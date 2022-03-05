@@ -50,7 +50,7 @@ Retorno :
 
 ====================================================== */
 
-STATIC Function zCompare(xValue1,xValue2)
+USER Function zCompare(xValue1,xValue2)
 Local cType1 := valtype(xValue1)
 Local nI, nT, nRet := 0
 

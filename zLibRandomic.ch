@@ -40,7 +40,7 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 
   #define zLibRandomic_CH
 
-  #xtranslate Randomic( <nMin> , <nMax> ) => STATICCALL( ZLIBRANDOMIC , RANDOMIC , <nMin> , <nMax> ) 
+  #xtranslate Randomic( <nMin> , <nMax> ) => U_RANDOMIC , <nMin> , <nMax> ) 
 
 #endif
 

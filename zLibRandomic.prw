@@ -41,7 +41,7 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 
 ====================================================== */
 
-STATIC Function Randomic(nMin,nMax)
+USER Function Randomic(nMin,nMax)
 Local nDiff := nMax-nMin
 Local nDec := 0
 If nDiff < 32766

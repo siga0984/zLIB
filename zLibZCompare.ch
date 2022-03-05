@@ -40,6 +40,6 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 
   #define zLibZCompare_CH
 
-  #xtranslate zCompare( <xValue1> , <xValue2> )   =>  STATICCALL( ZLIBZCOMPARE , ZCOMPARE , <xValue1> , <xValue2> ) 
+  #xtranslate zCompare( <xValue1> , <xValue2> )   =>  U_ZCOMPARE ( <xValue1> , <xValue2> ) 
 
 #endif
