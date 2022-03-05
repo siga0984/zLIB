@@ -236,7 +236,7 @@ Return substr(_HexSeq,nRet-1,1)
 
 STATIC _Bits := GetBits()
 
-USER Function GetBits()
+STATIC Function GetBits()
 Local aBits := {}
 
 AADD(aBits,'00000000')
@@ -505,12 +505,12 @@ Return aBits
 
 STATIC _BitHash := BuildBitHash()
 
-USER Function BuildBitHash()
+STATIC Function BuildBitHash()
 Local nI
 Local _BitHash := HMNew()
 For nI := 0 to 255
   // Seta uma tupla chave , valor 
-  HMSet(_BitHash, NTOBIT8(nI) , nI )
+  HMSet(_BitHash, U_NTOBIT8(nI) , nI )
 Next
 Return _BitHash
 
