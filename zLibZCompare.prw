@@ -64,7 +64,7 @@ If cType1 == valtype(xValue2)
 		Else
 			// Compara os elementos
 			For nI := 1 to nT
-				nRet := zCompare(xValue1[nI],xValue2[nI])
+				nRet := U_zCompare(xValue1[nI],xValue2[nI])
 				If nRet < 0
 					// Achou uma diferença, retorna 
 					EXIT
