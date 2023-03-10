@@ -35,7 +35,9 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 
 
 #include 'protheus.ch'
-#include 'zlib.ch' 
+#INCLUDE 'ParmType.ch'
+#INCLUDE 'CXInclude.ch'
+//#include 'zlib.ch' 
 
 
 /* ======================================================
@@ -54,16 +56,16 @@ e ter uma mensagem com detalhes.
 
 CLASS ZLOGGER FROM LONGNAMECLASS
 
-   DATA cComponent
-   DATA lDateTime
-   DATA lThread
-   DATA lConsole
-   DATA oLogWriter
+   PUBLIC DATA cComponent			AS Character
+   PUBLIC DATA lDateTime			AS Logical
+   PUBLIC DATA lThread				AS Logical 
+   PUBLIC DATA lConsole				AS Logical 
+   PUBLIC DATA oLogWriter			AS Object
    
-   METHOD NEW(cComponent)
-   METHOD WRITE(cRun,cMsg)
-   METHOD SETWRITER()
-   METHOD SETECHO()
+   PUBLIC METHOD NEW()
+   PUBLIC METHOD WRITE()
+   PUBLIC METHOD SETWRITER()
+   PUBLIC METHOD SETECHO()
    
 ENDCLASS 
 
@@ -72,11 +74,16 @@ ENDCLASS
 // Cria uma instancia de geração de log para uma classe ou componente
 
 METHOD NEW(cComponent) CLASS ZLOGGER
-::cComponent := cComponent
-::lDateTime := .T. 
-::lThread   := .T. 
-::lConsole  := .F. 
-::oLogWriter := NIL
+
+	//Parametros da rotina-------------------------------------------------------------------------
+	ParamType 0		VAR cComponent		AS Character
+
+	::cComponent := cComponent
+	::lDateTime := .T. 
+	::lThread   := .T. 
+	::lConsole  := .F. 
+	::oLogWriter := NIL
+
 Return self
 
 
@@ -84,14 +91,24 @@ Return self
 // Permite associar ao log uma classe de escrita adicional 
 
 METHOD SETWRITER(oWriter)  CLASS ZLOGGER
-::oLogWriter := oWriter
+	
+	//Parametros da rotina-------------------------------------------------------------------------
+	ParamType 0		VAR oWriter		AS Object
+
+	::oLogWriter := oWriter
+
 Return
 
 // ------------------------------------------------------
 // Habilita ou desabilita o echo em console
 
 METHOD SETECHO(lSet)  CLASS ZLOGGER
-::lConsole  := lSet
+
+	//Parametros da rotina-------------------------------------------------------------------------
+	ParamType 0		VAR lSet		AS Logical
+	
+	::lConsole  := lSet
+
 Return
 
 
@@ -100,45 +117,51 @@ Return
 // Requer a operação ou função, e a mensagem com os detalhes de execução 
 
 METHOD WRITE(cRun,cMsg) CLASS ZLOGGER
-Local cEcho := ''
-Local nMS
 
-If !::lConsole .AND. ::oLogWriter = NIL
-	// Sem saida de console, sem escrita 
-	// em nenhum objeto, nao faz nada 
-	Return
-Endif
+	//Declaracao de variaveis----------------------------------------------------------------------
+	Local cEcho := ''		AS Character
+	Local nMS				AS Numeric
 
-If ::lDateTime 
-	// Acrescenta data e hora, com milissegundos
-	nMS := round( seconds()-int(seconds()) , 3 )  * 1000
-	cEcho += "["+dtos(date())+"]["+time()+"."+StrZero(nMS,3)+"]"
-Endif
+	//Parametros da rotina-------------------------------------------------------------------------
+	ParamType 0		VAR cRun		AS Character
+	ParamType 1		VAR cMsg		AS Character		Optional Default NIL
 
-If ::lThread   
-	// Acrescenta Numero da Thread
-	cEcho += "[Thread "+cValToChar(ThreadID())+"]"
-Endif
+	//---------------------------------------------------------------------------------------------
+	If !::lConsole .AND. ::oLogWriter = NIL
+		// Sem saida de console, sem escrita 
+		// em nenhum objeto, nao faz nada 
+		Return
+	Endif
 
-// Acrescenta Componente 
-cEcho += "["+::cComponent
-cEcho += ":"
-cEcho += cRun
-cEcho += "] "
+	If ::lDateTime 
+		// Acrescenta data e hora, com milissegundos
+		nMS := round( seconds()-int(seconds()) , 3 )  * 1000
+		cEcho += "["+dtos(date())+"]["+time()+"."+StrZero(nMS,3)+"]"
+	Endif
 
-// Acrescenta o valor informado
-cEcho += cValToChar(cMsg)
+	If ::lThread   
+		// Acrescenta Numero da Thread
+		cEcho += "[Thread "+cValToChar(ThreadID())+"]"
+	Endif
 
-// Mostra o echo no log de console
-If ::lConsole
-	Conout(cEcho)
-Endif
+	// Acrescenta Componente 
+	cEcho += "["+::cComponent
+	cEcho += ":"
+	cEcho += cRun
+	cEcho += "] "
 
-// SE eu tenho um objeto escritor de log relacionado
-// Chamo o escritor para fazer as honras
-If ::oLogWriter != NIL
-	::oLogWriter:WRITE(cRun,cMsg)
-Endif
+	// Acrescenta o valor informado
+	cEcho += cValToChar(cMsg)
+
+	// Mostra o echo no log de console
+	If ::lConsole
+		Conout(cEcho)
+	Endif
+
+	// SE eu tenho um objeto escritor de log relacionado
+	// Chamo o escritor para fazer as honras
+	If ::oLogWriter != NIL
+		::oLogWriter:WRITE(cRun,cMsg)
+	Endif
 
 Return 
-
