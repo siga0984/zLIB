@@ -1,2 +1,0 @@
-https://github.com/siga0984/zLIB
-https://siga0984.wordpress.com/2019/01/04/lendo-dbf-em-advpl-sem-driver-ou-rdd/
