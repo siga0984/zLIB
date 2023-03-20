@@ -386,10 +386,12 @@ METHOD CREATE( aStru ) CLASS ZDBFFILE
 	
 	If ::EXISTS()
 		::_SetError(-7,"CREATE ERROR - File Already Exists")
+		Return .F.
 	Endif
 
 	If ::lOpened
 		::_SetError(-8,"CREATE ERROR - File Already Opened")
+		Return .F.
 	Endif
 
 	If aStru = NIL .AND. ::oFileDef != NIL 
@@ -405,15 +407,16 @@ METHOD CREATE( aStru ) CLASS ZDBFFILE
 	nFields := len(aStru)
 
 	For nI := 1 to nFields
-		If aStru[nI][2] == 'M'
+		If aStru[nI][nST_TIPO] == 'M'
 			lHasMemo := .T. 
 		Endif
-		If !aStru[nI][2]$"CNDLM"
-			UserException("CREATE ERROR - INVALID FIELD TYPE "+aStru[nI][2]+ " ("+aStru[nI][1]+")" )
+		If !aStru[nI][nST_TIPO]$"CNDLM"
+			UserException("CREATE ERROR - INVALID FIELD TYPE "+aStru[nI][nST_TIPO]+ " ("+aStru[nI][nST_CAMPO]+")" )
+			Return .F.
 		Endif
 		// Ajusta nome do campo 
-		aStru[nI][1] := Upper(padr(aStru[nI][1],10))
-		nRecSize += aStru[nI][3]
+		aStru[nI][nST_CAMPO] := Upper(padr(aStru[nI][nST_CAMPO],10))
+		nRecSize += aStru[nI][nST_TAMANHO]
 	Next
 
 	// Inicio do Header
@@ -464,18 +467,22 @@ METHOD CREATE( aStru ) CLASS ZDBFFILE
 	// Acrescenta no Header a estrutura
 	For nI := 1 to nFields
 
-		cFldName := alltrim(aStru[nI][1])
+		cFldName := alltrim(aStru[nI][nST_CAMPO])
 		while len(cFldName) < 10
 			cFldName += chr(0)
 		Enddo
 
 		cNewHeader +=  cFldName + chr(0) // Nome
-		cNewHeader +=  aStru[nI][2]  // Tipo 
+		cNewHeader +=  aStru[nI][nST_TIPO]  // Tipo 
 		cNewHeader +=  replicate( chr(0) , 4 ) // Filler - Reserved
-		cNewHeader +=  chr(aStru[nI][3]) // Size
-		cNewHeader +=  chr(aStru[nI][4]) // Decimal
+		If aStru[nI][nST_TIPO] == 'C'
+			//Tratamento para campos texto grandes!
+			cNewHeader +=  I2Bin(aStru[nI][nST_TAMANHO]) // Tamanho
+		Else
+			cNewHeader +=  chr(aStru[nI][nST_TAMANHO]) // Size
+			cNewHeader +=  chr(aStru[nI][nST_DECIMAL]) // Decimal
+		EndIf
 		cNewHeader +=  replicate( chr(0) , 14 ) // Filler - Reserved
-
 	Next
 
 	// Final do Header apos estrutura 
@@ -650,6 +657,7 @@ METHOD _ReadHeader() CLASS ZDBFFILE
 
 	If ::nHData == -1 
 		UserException("_ReadHeader() ERROR - DBF File Not Opened")
+		Return .F.
 	Endif
 
 	// Reposiciono o arquivo no Offset 0
@@ -752,6 +760,7 @@ METHOD _ReadStruct() CLASS ZDBFFILE
 
 	If ::nHData == -1 
 		UserException("_ReadStruct() ERROR - DBF File Not Opened")
+		Return .F.
 	Endif
 
 	// Reposicionao o arquivo no Offset 32
@@ -759,9 +768,12 @@ METHOD _ReadStruct() CLASS ZDBFFILE
 
 	While .T.
 
-		FRead(::nHData,@cFldBuff,32)
+		If FRead(::nHData,@cFldBuff,32) == 0	//EOF
+			UserException("_ReadStruct() ERROR - Struct Corrupted")
+			Return .F.
+		EndIf
 		
-		If substr(cFldBuff,1,1) == chr(13) 
+		If substr(cFldBuff,1,1) == chr(13) 	// 0x0D = Fim da estrutura 
 			// 0x0D => Indica final da estrutura
 			EXIT
 		Endif
@@ -772,9 +784,13 @@ METHOD _ReadStruct() CLASS ZDBFFILE
 		
 		cFldType := DBF_OFFSET(cFldBuff,11,1)
 
-		nFldLen  := ASC(DBF_OFFSET(cFldBuff,16,1))
-		nFldDec  := ASC(DBF_OFFSET(cFldBuff,17,1))
-		
+		If cFldType == 'C'
+			nFldLen	:= Bin2I(DBF_OFFSET(cFldBuff,16,2))
+			nFldDec	:= 0
+		Else
+			nFldLen	:= ASC(DBF_OFFSET(cFldBuff,16,1))
+			nFldDec	:= ASC(DBF_OFFSET(cFldBuff,17,1))
+		EndIf		
 		aadd(::aStruct , Array(nST_TAMARR) )
 		nPos	:= Len(::aStruct)
 		::aStruct[nPos][nST_CAMPO]	:= cFldName
