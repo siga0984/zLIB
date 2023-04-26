@@ -34,7 +34,10 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 
 
 
-#include 'protheus.ch'
+#INCLUDE 'RWMake.ch'
+#INCLUDE 'Totvs.ch'
+#INCLUDE 'ParmType.ch'
+#INCLUDE 'CXInclude.ch'
 #include 'fileio.ch'
 
 /* ==========================================================
@@ -51,15 +54,15 @@ Observação  Somente leitura implementada
 
 CLASS ZDBTFILE FROM LONGNAMECLASS
 
-   DATA oDBF
-   DATA cFileName
-   DATA nHMemo
+   PUBLIC DATA oDBF			AS Object
+   PUBLIC DATA cFileName	AS Character
+   PUBLIC DATA nHMemo		AS Numeric
 
-   METHOD NEW()
-   METHOD OPEN()
-   METHOD CLOSE()
-   METHOD READMEMO()
-   METHOD WRITEMEMO()
+   PUBLIC METHOD NEW()
+   PUBLIC METHOD OPEN()
+   PUBLIC METHOD CLOSE()
+   PUBLIC METHOD READMEMO()
+   PUBLIC METHOD WRITEMEMO()
 
 ENDCLASS
               
@@ -67,9 +70,14 @@ ENDCLASS
 
 METHOD NEW(_oDBF,_cFileName) CLASS ZDBTFILE
 
-::oDBF      := _oDBF
-::cFileName := _cFileName
-::nHMemo    := -1
+	//Parametros da rotina-------------------------------------------------------------------------
+	ParamType 0		VAR _oDBF			AS Object
+	ParamType 1		VAR _cFileName		AS Character
+
+	//---------------------------------------------------------------------------------------------
+	::oDBF      := _oDBF
+	::cFileName := _cFileName
+	::nHMemo    := -1
 
 Return self
 
@@ -78,12 +86,12 @@ Return self
 
 METHOD OPEN() CLASS ZDBTFILE
 
-// Abre o arquivo MEMO 
-::nHMemo := FOpen(::cFileName)
+	// Abre o arquivo MEMO 
+	::nHMemo := FOpen(::cFileName)
 
-IF ::nHMemo == -1
-	Return .T. 
-Endif
+	IF ::nHMemo == -1
+		Return .T. 
+	Endif
 
 Return .T. 
 
@@ -91,10 +99,10 @@ Return .T.
 
 METHOD CLOSE() CLASS ZDBTFILE
 
-IF ::nHMemo != -1
-	fClose(::nHMemo)
-	::nHMemo := -1
-Endif
+	IF ::nHMemo != -1
+		fClose(::nHMemo)
+		::nHMemo := -1
+	Endif
 
 Return
 
@@ -102,28 +110,33 @@ Return
 // ----------------------------------------------------------
 
 METHOD READMEMO(nBlock) CLASS ZDBTFILE
-Local cMemo   := ''
-Local cBlock  := space(512)
-Local nFilePos := nBlock * 512
-Local nEndPos
 
-fSeek(::nHMemo , nFilePos)
+	//Declaracao de variaveis----------------------------------------------------------------------
+	Local cMemo   := ''					AS Character
+	Local cBlock  := space(512)			AS Character
+	Local nFilePos := nBlock * 512		AS Numeric
+	Local nEndPos						AS Numeric
 
-While .T.
-	fRead(::nHMemo,@cBlock,512)
-	nEndPos := at(chr(26),cBlock)
-	If nEndPos > 0
-		cBlock := left(cBlock,nEndPos-1)
-		cMemo += cBlock
-		EXIT
-	Else
-		cMemo += cBlock
-	Endif
-Enddo
+	//Parametros da rotina-------------------------------------------------------------------------
+	ParamType 0		VAR nBlock		AS Numeric
+	
+	fSeek(::nHMemo , nFilePos)
 
-// -- Quebra de linha "soft" = 8D 0A
-// -- Remove a quebra
-cMemo := strtran(cMemo , chr(141)+chr(10) , '' )
+	While .T.
+		fRead(::nHMemo,@cBlock,512)
+		nEndPos := at(chr(26),cBlock)
+		If nEndPos > 0
+			cBlock := left(cBlock,nEndPos-1)
+			cMemo += cBlock
+			EXIT
+		Else
+			cMemo += cBlock
+		Endif
+	Enddo
+
+	// -- Quebra de linha "soft" = 8D 0A
+	// -- Remove a quebra
+	cMemo := strtran(cMemo , chr(141)+chr(10) , '' )
 
 Return cMemo
 

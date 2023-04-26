@@ -33,7 +33,10 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 ------------------------------------------------------------------------------------------- */
 
 
-
+#INCLUDE 'RWMake.ch'
+#INCLUDE 'Totvs.ch'
+#INCLUDE 'ParmType.ch'
+#INCLUDE 'CXInclude.ch'
 
 /* ======================================================
 
@@ -47,19 +50,35 @@ Funcoes de Conversao Decimal / Hexa e vice-versa
 
 STATIC __aHEX := {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'}
 
-USER Function ZDEC2HEX(nByte)
-Local nL := ( nByte % 16 )
-Local nH := ( nByte-nL) / 16
+USER Function ZDEC2HEX(nByte)	AS Character
+
+	//Declaracao de variaveis----------------------------------------------------------------------
+	Local nL,nH			AS Numeric
+
+	//Parametros da rotina-------------------------------------------------------------------------
+	ParamType 0		VAR nByte		AS Numeric
+
+	//Inicializa Variaveis-------------------------------------------------------------------------
+	nL := ( nByte % 16 )	
+	nH := ( nByte-nL) / 16
+
 Return __aHEX[nH+1]+__aHEX[nL+1]
 
 // ----------------------------------------
 // Converte um valor hexadecimal de 00 a FF para decimal
+USER  Function ZHEX2DEC(cHex)	AS Numeric
 
-USER  Function ZHEX2DEC(cHex)
-Local nH := asc(Upper(substr(cHex,1,1)))
-Local nL := asc(Upper(substr(cHex,2,1)))
-If nH <= 57 ;    nH -= 48 ; Else ;    nH -= 55 ; Endif
-If nL <= 57 ;    nL -= 48 ; Else ;    nL -= 55 ; Endif
+	//Declaracao de variaveis----------------------------------------------------------------------
+	Local nH,nL			AS Numeric
+
+	//Parametros da rotina-------------------------------------------------------------------------
+	ParamType 0		VAR cHex		AS Character
+
+	//Inicializa Variaveis-------------------------------------------------------------------------
+	nH := asc(Upper(substr(cHex,1,1)))
+	nL := asc(Upper(substr(cHex,2,1)))
+
+	If nH <= 57 ;    nH -= 48 ; Else ;    nH -= 55 ; Endif
+	If nL <= 57 ;    nL -= 48 ; Else ;    nL -= 55 ; Endif
+
 Return (nH*16)+nL
-
-

@@ -1,18 +1,18 @@
 /* -------------------------------------------------------------------------------------------
 
-Copyright 2015-2019 J√∫lio Wittwer ( siga0984@gmail.com | http://siga0984.wordpress.com/ )
+Copyright 2015-2019 J˙lio Wittwer ( siga0984@gmail.com | http://siga0984.wordpress.com/ )
 
-√â permitido, gratuitamente, a qualquer pessoa que obtenha uma c√≥pia deste software 
-e dos arquivos de documenta√ß√£o associados (o "Software"), para negociar o Software 
-sem restri√ß√µes, incluindo, sem limita√ß√£o, os direitos de uso, c√≥pia, modifica√ß√£o, fus√£o,
-publica√ß√£o, distribui√ß√£o, sublicenciamento e/ou venda de c√≥pias do Software, 
-SEM RESTRI√á√ïES OU LIMITA√á√ïES. 
+… permitido, gratuitamente, a qualquer pessoa que obtenha uma cÛpia deste software 
+e dos arquivos de documentaÁ„o associados (o "Software"), para negociar o Software 
+sem restriÁıes, incluindo, sem limitaÁ„o, os direitos de uso, cÛpia, modificaÁ„o, fus„o,
+publicaÁ„o, distribuiÁ„o, sublicenciamento e/ou venda de cÛpias do Software, 
+SEM RESTRI«’ES OU LIMITA«’ES. 
 
-O SOFTWARE √â FORNECIDO "TAL COMO EST√Å", SEM GARANTIA DE QUALQUER TIPO, EXPRESSA OU IMPL√çCITA,
-INCLUINDO MAS N√ÉO SE LIMITANDO A GARANTIAS DE COMERCIALIZA√á√ÉO, ADEQUA√á√ÉO A UMA FINALIDADE
-ESPEC√çFICA E N√ÉO INFRAC√á√ÉO. EM NENHUM CASO OS AUTORES OU TITULARES DE DIREITOS AUTORAIS
-SER√ÉO RESPONS√ÅVEIS POR QUALQUER REIVINDICA√á√ÉO, DANOS OU OUTRA RESPONSABILIDADE, SEJA 
-EM A√á√ÉO DE CONTRATO OU QUALQUER OUTRA FORMA, PROVENIENTE, FORA OU RELACIONADO AO SOFTWARE. 
+O SOFTWARE … FORNECIDO "TAL COMO EST¡", SEM GARANTIA DE QUALQUER TIPO, EXPRESSA OU IMPLÕCITA,
+INCLUINDO MAS N√O SE LIMITANDO A GARANTIAS DE COMERCIALIZA«√O, ADEQUA«√O A UMA FINALIDADE
+ESPECÕFICA E N√O INFRAC«√O. EM NENHUM CASO OS AUTORES OU TITULARES DE DIREITOS AUTORAIS
+SER√O RESPONS¡VEIS POR QUALQUER REIVINDICA«√O, DANOS OU OUTRA RESPONSABILIDADE, SEJA 
+EM A«√O DE CONTRATO OU QUALQUER OUTRA FORMA, PROVENIENTE, FORA OU RELACIONADO AO SOFTWARE. 
 
                     *** USE A VONTADE, POR SUA CONTA E RISCO ***
 
@@ -35,12 +35,11 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 
 
 
-
 #ifndef zLibDateTime_CH
 
   #define zLibDateTime_CH
 
-  #xtranslate STOD( <cAnsiDate> ) => U_ZSTOD( <cAnsiDate> ) 
+  //#xtranslate STOD( <cAnsiDate> ) => U_ZSTOD( <cAnsiDate> ) //achei desnecess·rio
   #xtranslate DATE2DJ( <dDate> ) => U_ZDATE2DJ( <dDate> ) 
   #xtranslate DJ2DATE( <nDJ> ) => U_ZDJ2DATE( <nDJ> ) 
 
