@@ -2014,6 +2014,7 @@ METHOD Destroy()  CLASS ZISAMFILE
 	If ValType(::aIndexes) == 'A'
 		For nX := 1 to Len(::aIndexes)
 			If ValType(::aIndexes[nX][2]) == 'O'	//Objeto oMemIndex
+				::aIndexes[nX][2]:Close()
 				FreeObj(::aIndexes[nX][2])
 			EndIf
 		Next

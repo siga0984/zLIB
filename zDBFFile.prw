@@ -507,6 +507,7 @@ METHOD CREATE( aStru ) CLASS ZDBFFILE
 		cMemoFile += '.fpt'
 		oMemoFile := ZFPTFILE():New(self,cMemoFile)
 		lOk := oMemoFile:Create()
+		oMemoFile:Close()
 		FreeObj(oMemoFile)
 		If !lOk
 			::_SetError(-9,"CREATE ERROR - Data File ["+::cDataFile+"] - FERROR ("+cValToChar(Ferror())+")")
@@ -1338,6 +1339,9 @@ METHOD Destroy()  CLASS ZDBFFILE
 
 	::Close()
 
+	If Destroy <> NIL
+		oFileDef:Destroy()
+	EndIf
 	FreeObj(::oMemoFile)
 	FreeObj(::oLogger)
 	FreeObj(::oFileDef)
