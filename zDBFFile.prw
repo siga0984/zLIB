@@ -344,10 +344,12 @@ METHOD CLOSE() CLASS ZDBFFILE
 	Endif
 
 	// Fecha todos os indices abertos 
-	::ClearIndex()
+	//::ClearIndex()
 
 	// Limpa as propriedades
-	::_InitVars()
+	//::_InitVars()
+	
+	_Super:Destroy()
 
 Return 
 
