@@ -37,7 +37,6 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 #INCLUDE 'RWMake.ch'
 #INCLUDE 'Totvs.ch'
 #INCLUDE 'ParmType.ch'
-#INCLUDE 'CXInclude.ch'
 #include 'fileio.ch'
 #include "zLibNBin.ch"
 
@@ -82,7 +81,8 @@ ENDCLASS
 // Construtor
 // Recebe o objeto ZDBFFILE e o nome do arquivo FPT 
 
-METHOD NEW(_oDBF,_cFileName) CLASS ZFPTFILE
+METHOD NEW(	_oDBF		AS Object	,;
+			_cFileName	AS Character) CLASS ZFPTFILE
 
 	//Parametros da rotina-------------------------------------------------------------------------
 	ParamType 0		VAR _oDBF			AS Object
@@ -156,8 +156,8 @@ Return .T.
 // Abertura do arquivo FPT 
 // Recebe os mesmos modos de abertura do ZDBFFILE
 
-METHOD OPEN(lExclusive	,;	//01 lExclusive
-			lCanWrite	);	//02 lCanWrite
+METHOD OPEN(lExclusive	AS Logical,;	//01 lExclusive
+			lCanWrite	AS Logical);	//02 lCanWrite
 				CLASS ZFPTFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
@@ -229,7 +229,7 @@ Return
 // Lê um campo memo armazenado em um Bloco
 // Recebe o número do bloco como parâmetro
 
-METHOD READMEMO(nBlock) CLASS ZFPTFILE
+METHOD READMEMO(nBlock	AS Numeric	) CLASS ZFPTFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local cMemo   := ''							AS Character
@@ -278,7 +278,8 @@ Return cMemo
 // Release 20190109 - Tratar "limpeza" de campo. 
 //                  - Ignorar inserção de string vazia
 
-METHOD WRITEMEMO( nBlock , cMemo ) CLASS ZFPTFILE
+METHOD WRITEMEMO( 	nBlock	AS Numeric	,;
+					cMemo 	AS Character) CLASS ZFPTFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local cBuffer := ''			AS Character
@@ -364,7 +365,7 @@ METHOD WRITEMEMO( nBlock , cMemo ) CLASS ZFPTFILE
 	If nBlock == 0 
 		
 		// Pega o tamanho do arquivo 
-		nFileSize := fSeek(::nHMemo,0,2)
+		nFileSize := fSeek(::nHMemo,0,FS_END)
 
 		// Estou inserindo um conteudo em um campo memo ainda nao utilizado. 
 		// Ou estou usando um novo bloco , pois o campo memo 
@@ -377,7 +378,7 @@ METHOD WRITEMEMO( nBlock , cMemo ) CLASS ZFPTFILE
 			// Se o ultimo bloco do arquivo ainda nao foi preenchido com um "Filler" 
 			// até o inicio do proximo bloco , preenche agora
 			nFiller := nTamFile - nFileSize
-			fSeek(::nHMemo,0,2)
+			fSeek(::nHMemo,0,FS_END)
 			fWrite(::nHMemo , replicate( chr(0) , nFiller ) , nFiller ) 
 		Endif
 		

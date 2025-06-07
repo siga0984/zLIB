@@ -33,12 +33,16 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 ------------------------------------------------------------------------------------------- */
 
 
-
+#INCLUDE "FileIO.ch"
 #include 'Protheus.ch'
 #include "zLibDateTime.ch"
 #include "zLibZCompare.ch"
-#include "CXStruct.ch"
 #INCLUDE 'ParmType.ch'
+
+Static nST_CAMPO	:= 1	AS Integer
+Static nST_TIPO		:= 2	AS Integer
+Static nST_TAMANHO	:= 3	AS Integer
+Static nST_DECIMAL	:= 4	AS Integer
 
 /* ======================================================================================
 Classe       ZISAMFILE
@@ -141,7 +145,7 @@ ENDCLASS
 
 
 // ----------------------------------------
-METHOD New(oParent) CLASS ZISAMFILE
+METHOD New(oParent	AS Object) CLASS ZISAMFILE
 
 	::oISAMLogger := ZLOGGER():New("ZISAMFILE")
 	::oISAMLogger:Write("NEW","IsamFile based on "+GetClassName(oParent))
@@ -162,7 +166,7 @@ Return ::lEOF
 // ----------------------------------------------------------
 // Posiciona diretamente em um regsitro 
 
-METHOD GoTo(nRec)  CLASS ZISAMFILE
+METHOD GoTo(nRec	AS Numeric	)  CLASS ZISAMFILE
 
 	//Parametros da rotina-------------------------------------------------------------------------
 	ParamType 0		VAR nRec		AS Numeric
@@ -266,7 +270,7 @@ Return
 // No caso de DBSkip(0), apenas faz refresh do registro atual   
 // Default = 1 ( Próximo Registro ) 
 
-METHOD Skip( nQtd ) CLASS ZISAMFILE
+METHOD Skip( nQtd	AS Numeric	) CLASS ZISAMFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local lForward := .T. 	AS Logical
@@ -313,7 +317,7 @@ Return
 // Permite setar um filtro para a navegação de dados 
 // Todos os campos devem estar em letras maiusculas 
 
-METHOD SetFilter( cFilter ) CLASS ZISAMFILE
+METHOD SetFilter( cFilter	AS Character) CLASS ZISAMFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local cFilterBlk		AS Character
@@ -353,7 +357,7 @@ Return ::nLastRec
 
 // ----------------------------------------------------------
 // Retorna um clone do Array da estrutura da tabela 
-METHOD GetStruct(lJson) CLASS ZISAMFILE
+METHOD GetStruct(lJson	AS Logical	) CLASS ZISAMFILE
 	
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local uRet		AS Variant
@@ -382,7 +386,7 @@ Return uRet
 //##|        |          |                                                                        |##
 //##+========+==========+========================================================================+##
 //##################################################################################################
-METHOD dbStruct(lJson) CLASS ZISAMFILE
+METHOD dbStruct(lJson	AS Logical	) CLASS ZISAMFILE
 Return ::GetStruct(lJson)
 
 // ----------------------------------------------------------
@@ -393,7 +397,7 @@ Return ::nFldCount
 // ----------------------------------------------------------
 // Recupera o nome de um campo da tabela 
 // a partir da posicao do campo na estrutura
-METHOD FieldName(nPos) CLASS ZISAMFILE
+METHOD FieldName(nPos	AS Numeric	) CLASS ZISAMFILE
 
 	If nPos > 0 .and. nPos <= ::nFldCount 
 		Return ::aStruct[nPos][nST_CAMPO]
@@ -403,7 +407,7 @@ Return NIL
 
 // ------------------------------------------------------------------------------------------------
 // Recupera o numero do campo na estrutura da tabela a partir do nome do campo 
-METHOD FieldPos( cField ) CLASS ZISAMFILE
+METHOD FieldPos( cField	AS Character) CLASS ZISAMFILE
 	
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local nPos	:= 0		AS Numeric
@@ -441,7 +445,7 @@ Return NIL
 // ----------------------------------------
 // Permite trocar a ordedm atual usando 
 // um indice aberto 
-METHOD SetOrder(nOrd) CLASS ZISAMFILE
+METHOD SetOrder(nOrd	AS Numeric	) CLASS ZISAMFILE
 
 	//Parametros da rotina-------------------------------------------------------------------------
 	ParamType 0		VAR nOrd		AS Numeric
@@ -490,7 +494,7 @@ Return NIL
 
 // ----------------------------------------
 // Retorna o numero da ordem do indce ativo 
-METHOD Seek(cKeyExpr) CLASS ZISAMFILE
+METHOD Seek(cKeyExpr	AS Character) CLASS ZISAMFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local nRecFound := 0
@@ -528,7 +532,7 @@ Return .F.
 // Torna o indice ativo e posiciona no primeiro 
 // registro da nova ordem 
 
-METHOD CreateIndex(cIndexExpr) CLASS ZISAMFILE
+METHOD CreateIndex(cIndexExpr	AS Character) CLASS ZISAMFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local oMemIndex		AS Object
@@ -565,13 +569,19 @@ METHOD ClearIndex()  CLASS ZISAMFILE
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local nI		AS Numeric
 
-	::oISAMLogger:Write("ClearIndex")
+	If ::oISAMLogger <> NIL
+		::oISAMLogger:Write("ClearIndex")
+	EndIf
 
-	For nI := 1 to len(::aIndexes)
-		::oCurrentIndex := ::aIndexes[nI]
-		::oCurrentIndex:Close()
-		FreeObj(::oCurrentIndex)
-	Next
+	If ::aIndexes <> NIL
+		For nI := 1 to len(::aIndexes)
+			::oCurrentIndex := ::aIndexes[nI]
+			If ValType(aIndexes[nI]) == 'O'
+				::oCurrentIndex:Close()
+			EndIf
+			FreeObj(::oCurrentIndex)
+		Next
+	EndIf
 
 Return
 
@@ -582,7 +592,8 @@ Return
 // Caso lAppend seja .T., a tabela é aberta em modo exclusivo e para gravação 
 // e os dados são importados
 
-METHOD CreateFrom( _oDBF , lAppend  ) CLASS ZISAMFILE
+METHOD CreateFrom( 	_oDBF ,;
+					lAppend	AS Logical  ) CLASS ZISAMFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local aStruct		:= {}		AS Array
@@ -643,7 +654,11 @@ Return .T.
 // Origem = _oDBF
 // Destino = self
 
-METHOD AppendFrom( _oDBF , lAll, lRest , cFor , cWhile ) CLASS ZISAMFILE
+METHOD AppendFrom( 	_oDBF ,;
+					lAll	AS Logical	,;
+					lRest	AS Logical	,;
+					cFor 	AS Character,;
+					cWhile	AS Character ) CLASS ZISAMFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local aFromTo	:= {}		AS Array
@@ -658,8 +673,8 @@ METHOD AppendFrom( _oDBF , lAll, lRest , cFor , cWhile ) CLASS ZISAMFILE
 	ParamType 0		VAR _oDBF			AS Character,Object
 	ParamType 1		VAR lAll			AS Logical				Optional Default .T.
 	ParamType 2		VAR lRest			AS Logical				Optional Default .F.
-	ParamType 3		VAR cFor			AS Logical				Optional Default ''
-	ParamType 4		VAR cWhile			AS Logical				Optional Default ''
+	ParamType 3		VAR cFor			AS Character			Optional Default ''
+	ParamType 4		VAR cWhile			AS Character			Optional Default ''
 
 	::oISAMLogger:Write("AppendFrom")
 				
@@ -764,7 +779,9 @@ Return .T.
 //    XML
 // cFileOut = Arquivo de saída 
 
-METHOD Export( cFormat, cFileOut , bBlock ) CLASS ZISAMFILE
+METHOD Export( 	cFormat		AS Character,;
+				cFileOut 	AS Character,;
+				bBlock 					) CLASS ZISAMFILE
 
 	//Parametros da rotina-------------------------------------------------------------------------
 	ParamType 0		VAR cFormat		AS Character
@@ -799,7 +816,7 @@ Return lOk
 // ----------------------------------------------------------
 // Recebe a definicao extendida da tabela 
 // Com isso eu já tenho a estrutura 
-METHOD SetFileDef(oDef)  CLASS ZISAMFILE
+METHOD SetFileDef(oDef	AS Object	)  CLASS ZISAMFILE
 
 	//Parametros da rotina-------------------------------------------------------------------------
 	ParamType 0		VAR oDef		AS Object
@@ -821,7 +838,7 @@ Return .T.
 // Texto sem delimitador , Campos colocados na ordem da estrutura
 // CRLF como separador de linhas
 // Campo MEMO não é exportado
-METHOD _ExportSDF( cFileOut ) CLASS ZISAMFILE
+METHOD _ExportSDF( cFileOut	AS Character) CLASS ZISAMFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local cBuffer := ''			AS Character
@@ -838,7 +855,7 @@ METHOD _ExportSDF( cFileOut ) CLASS ZISAMFILE
 
 	nHOut := fCreate(cFileOut)
 	If nHOut == -1
-		::_SetError("Output SDF File Create Error - FERROR "+cValToChar(Ferror()))
+		::_SetError(ProcLine(),"Output SDF File Create Error - FERROR "+cValToChar(Ferror()))
 		Return .F.
 	Endif
 
@@ -900,7 +917,7 @@ Return
 // Gera o CSV com Header
 // Campo MEMO não é exportado
 
-METHOD _ExportCSV( cFileOut ) CLASS ZISAMFILE
+METHOD _ExportCSV( cFileOut	AS Character) CLASS ZISAMFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local cBuffer := ''				AS Character
@@ -917,7 +934,7 @@ METHOD _ExportCSV( cFileOut ) CLASS ZISAMFILE
 
 	nHOut := fCreate(cFileOut)
 	If nHOut == -1
-		::_SetError("Output CSV File Create Error - FERROR "+cValToChar(Ferror()))
+		::_SetError(ProcLine(),"Output CSV File Create Error - FERROR "+cValToChar(Ferror()))
 		Return .F.
 	Endif
 
@@ -1009,7 +1026,7 @@ Return .T.
 ] 	}
 */
 
-METHOD _ExportJSON( cFileOut ) CLASS ZISAMFILE
+METHOD _ExportJSON( cFileOut	AS Character) CLASS ZISAMFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local cBuffer := ''			AS Character
@@ -1027,7 +1044,7 @@ METHOD _ExportJSON( cFileOut ) CLASS ZISAMFILE
 
 	nHOut := fCreate(cFileOut)
 	If nHOut == -1
-		::_SetError("Output JSON File Create Error - FERROR "+cValToChar(Ferror()))
+		::_SetError(ProcLine(),"Output JSON File Create Error - FERROR "+cValToChar(Ferror()))
 		Return .F.
 	Endif
 
@@ -1127,7 +1144,7 @@ Return .T.
 // Objeto com 2 array de propriedades : header e data
 // Para economizar espaço, as colunas de dados são nomeadas com as tags col1, col2 ... n
 
-METHOD _ExportXML( cFileOut ) CLASS ZISAMFILE
+METHOD _ExportXML( cFileOut	AS Character) CLASS ZISAMFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local cBuffer := ''			AS Character
@@ -1144,7 +1161,7 @@ METHOD _ExportXML( cFileOut ) CLASS ZISAMFILE
 
 	nHOut := fCreate(cFileOut)
 	If nHOut == -1
-		::_SetError("Output XML File Create Error - FERROR "+cValToChar(Ferror()))
+		::_SetError(ProcLine(),"Output XML File Create Error - FERROR "+cValToChar(Ferror()))
 		Return .F.
 	Endif
 
@@ -1239,8 +1256,8 @@ Return .T.
 
 // --------------------------------------------------------------------
 // Importacao de dados de arquivo externo -- Formatos SDF,CDV e JSON   
-METHOD Import(	cFileIn	,;	//01 cFileIn
-				cFormat	);	//02 cFormat
+METHOD Import(	cFileIn	AS Character,;	//01 cFileIn
+				cFormat	AS Character);	//02 cFormat
 					CLASS ZISAMFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
@@ -1285,7 +1302,7 @@ Return lOk
 // Nao tengo como validar os campos, mas tenho como fazer uma consistencia 
 // Baseado no tamanho de cada linha com a estrutura atual da tabela. 
 
-METHOD _ImportSDF(cFileIn) CLASS ZISAMFILE
+METHOD _ImportSDF(cFileIn	AS Character) CLASS ZISAMFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local cOneRow	:= ''		AS Character
@@ -1308,12 +1325,12 @@ METHOD _ImportSDF(cFileIn) CLASS ZISAMFILE
 	nH := FOpen(cFileIn)
 
 	If nH == -1
-		::_SetError( "_ImportSDF() ERROR - File Open Failed - FERROR "+cValToChar(ferror()) )
+		::_SetError(ProcLine(),"_ImportSDF() ERROR - File Open Failed - FERROR "+cValToChar(ferror()) )
 		Return .F. 
 	Endif
 
 	// Pega tamanho do arquivo no disco 
-	nFSize := fSeek(nH,0,2)
+	nFSize := fSeek(nH,0,FS_END)
 	FSeek(nH,0)
 			
 	// Calcula o tamanho de cada linha baseado na estrutura
@@ -1340,7 +1357,7 @@ METHOD _ImportSDF(cFileIn) CLASS ZISAMFILE
 
 	If nCheck <> 1
 
-		::_SetError( "_ImportSDF() ERROR - SDF File Size FERROR MISMATCH" )
+		::_SetError(ProcLine(),"_ImportSDF() ERROR - SDF File Size FERROR MISMATCH" )
 		FClose(nH)
 		Return .F. 
 
@@ -1405,7 +1422,7 @@ Return
 // e passo a ler o arquivo em blocos, parseando o conteúdo lido em memória
 // Comparo o Header com os campos da estrutura
 
-METHOD _ImportCSV(cFileIn) CLASS ZISAMFILE
+METHOD _ImportCSV(cFileIn	AS Character) CLASS ZISAMFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local aHeadCpos := {}		AS Array
@@ -1430,12 +1447,12 @@ METHOD _ImportCSV(cFileIn) CLASS ZISAMFILE
 	nH := FOpen(cFileIn)
 
 	If nH == -1
-		::_SetError( "_ImportCSV() ERROR - File Open Failed - FERROR "+cValToChar(ferror()) )
+		::_SetError(ProcLine(),"_ImportCSV() ERROR - File Open Failed - FERROR "+cValToChar(ferror()) )
 		Return .F. 
 	Endif
 
 	// Pega tamanho do arquivo no disco 
-	nFSize := fSeek(nH,0,2)
+	nFSize := fSeek(nH,0,FS_END)
 	FSeek(nH,0)
 			
 	// Calcula o tamanho máximo de uma linha baseado na estrutura da tabela 
@@ -1487,7 +1504,7 @@ METHOD _ImportCSV(cFileIn) CLASS ZISAMFILE
 
 	If zCompare( aFileCpos , aHeadCpos ) < 0 
 		fClose(nH)	
-		::_SetError( "_ImportCSV() ERROR - Header Fields Mismatch." )
+		::_SetError(ProcLine(),"_ImportCSV() ERROR - Header Fields Mismatch." )
 		Return .F. 
 	Endif
 
@@ -1559,8 +1576,10 @@ Return
 
 // ----------------------------------------
 
-METHOD _ImportJSON(cFileIn) CLASS ZISAMFILE
-UserException("ZISAMFILE:_ImportJSON() NOT IMPLEMENTED.")
+METHOD _ImportJSON(cFileIn	AS Character) CLASS ZISAMFILE
+	
+	UserException("ZISAMFILE:_ImportJSON() NOT IMPLEMENTED.")
+
 Return .F. 
 
 
@@ -1712,7 +1731,8 @@ Return
 // *** METODO DE USO INTERNO ***
 // Seta uma nova ocorrencia de erro
 
-METHOD _SetError(nError,cErrorMsg) CLASS ZISAMFILE 
+METHOD _SetError(	nError		AS Numeric	,;
+					cErrorMsg	AS Character) CLASS ZISAMFILE 
 
 	//Parametros da rotina-------------------------------------------------------------------------
 	ParamType 0		VAR nError		AS Numeric		Optional Default -999
@@ -1727,7 +1747,7 @@ Return
 // ----------------------------------------------------------
 // Permite setar o modo "verbose" da classe
 
-METHOD SetVerbose( lSet ) CLASS ZISAMFILE
+METHOD SetVerbose( lSet	AS Logical	) CLASS ZISAMFILE
 
 	//Parametros da rotina-------------------------------------------------------------------------
 	ParamType 0		VAR lSet		AS Logical
@@ -1812,7 +1832,7 @@ Return
 // trocado por o:FieldGet(nPos), o codeblock deve ser usado 
 // com Eval() passando como argumento o objeto da tabela 
 
-METHOD _BuildFieldBlock(cFieldExpr) CLASS ZISAMFILE
+METHOD _BuildFieldBlock(cFieldExpr	AS Character) CLASS ZISAMFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local aCampos := {}		AS Array
@@ -1850,8 +1870,8 @@ Return cBlockStr
 // Remove aspas duplas delimitadoras por referencia
 // Retorna por referencia se a string estava 
 // delimitada por aspas duplas 
-STATIC Function NoQuotes(	cQuotStr	,;
-							lQuoted		)
+STATIC Function NoQuotes(	cQuotStr	AS Character,;
+							lQuoted		AS Logical	)
 
 	lQuoted := left(cQuotStr,1) = '"' .and. right(cQuotStr,1) = '"'
 	If lQuoted
@@ -1862,7 +1882,7 @@ STATIC Function NoQuotes(	cQuotStr	,;
 Return 
 
 // ------------------------------------------------------------------------------------------------
-STATIC Function GetNextVal(cCSVLine)	AS Character
+STATIC Function GetNextVal(cCSVLine	AS Character)	AS Character
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local cRet		:= ''				AS Character
@@ -1917,7 +1937,9 @@ Return cRet
 // Caso seja especificada busca EXATA, os conteudos dos campos 
 // informados devem ter correspondencia exata com a base de dados
 
-METHOD Search(aRecord,aFound,lExact)  CLASS ZISAMFILE
+METHOD Search(	aRecord	AS Array	,;
+				aFound	AS Array	,;
+				lExact	AS Logical	)  CLASS ZISAMFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local aFldPos := {}				AS Array
@@ -1988,7 +2010,7 @@ METHOD Search(aRecord,aFound,lExact)  CLASS ZISAMFILE
 		Return .T.
 	Endif
 
-	::_SetError( "Nenhum registro foi encontrado baseado nos dados informados" )
+	::_SetError(ProcLine(), "Nenhum registro foi encontrado baseado nos dados informados" )
 
 Return .F. 
 
@@ -2007,19 +2029,9 @@ Return .F.
 //##################################################################################################
 METHOD Destroy()  CLASS ZISAMFILE 
 
-	//Declaracao de variaveis----------------------------------------------------------------------
-	Local nX		AS Numeric
-
 	//---------------------------------------------------------------------------------------------
-	If ValType(::aIndexes) == 'A'
-		For nX := 1 to Len(::aIndexes)
-			If ValType(::aIndexes[nX][2]) == 'O'	//Objeto oMemIndex
-				::aIndexes[nX][2]:Close()
-				FreeObj(::aIndexes[nX][2])
-			EndIf
-		Next
-		FwFreeArray(::aIndexes)
-	EndIf
+	::ClearIndex()
+	FwFreeArray(::aIndexes)
 	FwFreeArray(::aStruct)
 	FreeObj(::jStruct)
 	FreeObj(::oISAMLogger)
