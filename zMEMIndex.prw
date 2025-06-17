@@ -35,6 +35,7 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 
 
 #include 'protheus.ch'
+#INCLUDE 'CXInclude.ch'
 
 /* ==================================================
 
@@ -46,34 +47,34 @@ Descrição   A partir de um objeto ZISAMFILE, permite
 
 ================================================== */
 
-CLASS ZMEMINDEX FROM LONGNAMECLASS
+CLASS ZMEMINDEX //FROM LONGNAMECLASS
 
-   DATA oDBF			// Objeto ZISAMFILE relacionado ao índice 
-   DATA cIndexExpr      // Expressão AdvPL original do índice
-   DATA bIndexBlock     // CodeBlock para montar uma linha de dados do índice
-   DATA aIndexData      // Array com os dados do índice ordenado pela chave 
-   DATA nCurrentRow     // Numero da linha atual do índice 
-   DATA lVerbose        // Modo Verbose (echo em console ligado)
+	PUBLIC DATA oDBF			AS Object		// Objeto ZISAMFILE relacionado ao índice 
+	PUBLIC DATA cIndexExpr		AS Chracter		// Expressão AdvPL original do índice
+	PUBLIC DATA bIndexBlock		AS CodeBlock	// CodeBlock para montar uma linha de dados do índice
+	PUBLIC DATA aIndexData		AS Array		// Array com os dados do índice ordenado pela chave 
+	PUBLIC DATA nCurrentRow		AS Numeric		// Numero da linha atual do índice 
+	PUBLIC DATA lVerbose		AS Logical		// Modo Verbose (echo em console ligado)
+	
+	PUBLIC METHOD NEW(oDBF)		CONSTRUCTOR				// Cria o objeto do índice
+	PUBLIC METHOD CREATEINDEX(cIndexExpr) 	AS Logical	// Cria o índice baseado na chave fornecida 
+	PUBLIC METHOD CLOSE()       						// Fecha o índice e limpa os dados da memória 
 
-   METHOD NEW(oDBF)     // Cria o objeto do índice
-   METHOD CREATEINDEX(cIndexExpr) // Cria o índice baseado na chave fornecida 
-   METHOD CLOSE()       // Fecha o índice e limpa os dados da memória 
+	PUBLIC METHOD GetFirstRec() 			AS Numeric	// Retorna o RECNO do primeiro registro do índice
+	PUBLIC METHOD GetPrevRec()  			AS Numeric	// Retorna o RECNO do Registro anterior do índice
+	PUBLIC METHOD GetNextRec()  			AS Numeric	// Retorna o RECNO do próximo registro do índice
+	PUBLIC METHOD GetLastRec()  			AS Numeric	// Retorna o RECNO do último registro do índice 
 
-   METHOD GetFirstRec() // Retorna o RECNO do primeiro registro do índice
-   METHOD GetPrevRec()  // Retorna o RECNO do Registro anterior do índice
-   METHOD GetNextRec()  // Retorna o RECNO do próximo registro do índice
-   METHOD GetLastRec()  // Retorna o RECNO do último registro do índice 
-   
-   METHOD GetIndexExpr()  // Rertorna a expressão de indexação 
-   METHOD GetIndexValue() // Retorna o valor da chave de indice do registro atual 
-   METHOD GetIndexRecno() // REtorna o numero do RECNO da posição do índice atual 
-   METHOD IndexSeek()     // Realiza uma busca ordenada por um valor informado 
-   METHOD RecordSeek()    // REaliza uma busca no indice pelo RECNO 
-   METHOD InsertKey()     // Insere uma nova chave no indice ao inserir um registro
-   METHOD UpdateKey()     // Atualiza uma chave de indice ( em implementação ) 
-   
-   METHOD CheckSync()    // Verifica a necessidade de sincronizar o indice 
-   METHOD SetVerbose()    // Seta modo verbose com echo em console ( em implementação 
+	PUBLIC METHOD GetIndexExpr()  			AS Chracter	// Rertorna a expressão de indexação 
+	PUBLIC METHOD GetIndexValue() 			AS Chracter	// Retorna o valor da chave de indice do registro atual 
+	PUBLIC METHOD GetIndexRecno() 			AS Numeric	// REtorna o numero do RECNO da posição do índice atual 
+	PUBLIC METHOD IndexSeek()	 			AS Numeric	// Realiza uma busca ordenada por um valor informado 
+	PUBLIC METHOD RecordSeek()				AS Numeric	// REaliza uma busca no indice pelo RECNO 
+	PUBLIC METHOD InsertKey()							// Insere uma nova chave no indice ao inserir um registro
+	PUBLIC METHOD UpdateKey()							// Atualiza uma chave de indice ( em implementação ) 
+
+	PUBLIC METHOD CheckSync()							// Verifica a necessidade de sincronizar o indice 
+	PUBLIC METHOD SetVerbose()							// Seta modo verbose com echo em console ( em implementação 
    
 ENDCLASS
 
@@ -81,19 +82,29 @@ ENDCLASS
 // Construtor do indice em memoria
 // Recebe o objeto da tabela
 
-METHOD NEW(oDBF) CLASS ZMEMINDEX
-::oDBF := oDBF
-::cIndexExpr := ''
-::bIndexBlock := NIL
-::aIndexData := {}
-::nCurrentRow := 0
-::lVerbose   := .T.
+METHOD NEW(oDBF	AS Object)	AS Object CLASS ZMEMINDEX
+
+	//-- Parâmetros da Rotina -------------------------------------------------
+	ParamObg 0		VAR oDBF
+
+	::oDBF 			:= oDBF
+	::cIndexExpr	:= ''
+	::bIndexBlock	:= NIL
+	::aIndexData	:= {}
+	::nCurrentRow	:= 0
+	::lVerbose		:= .T.
+
 Return self
 
 // ----------------------------------------
 // Permite ligar ou desligar o modo verbose da classe de indice
-METHOD SetVerbose( lSet ) CLASS ZMEMINDEX
-::lVerbose := lSet
+METHOD SetVerbose( lSet AS Logical) CLASS ZMEMINDEX
+	
+	//-- Parâmetros da Rotina -------------------------------------------------
+	ParamObg 0		VAR lSet
+
+	::lVerbose := lSet
+
 Return
 
 
@@ -103,29 +114,31 @@ Return
 // Caso tenha, efetua o sincronismo da posicao do indice com a posicao do RECNO
 
 METHOD CheckSync() CLASS ZMEMINDEX
-Local nRecno
+	
+	//-- Declaração de Variáveis ----------------------------------------------
+	Local nRecno									AS Numeric
 
-If ::oDBF:Eof()
-	// Nao posso sincronizar em EOF()
-	Return
-Endif
-	
-// Pega o numero do RECNO atual do DBF
-nRecno := ::oDBF:Recno()
-	
-IF ::aIndexData[::nCurrentRow][2] != nRecno
-	
-	// Se o RECNO da posicao de indice nao está sincronizado,
-	// Busca pela posicao correta do indice de addos ordenados
-	// correspondente ao RECNO atual
-	
-	::nCurrentRow := ::RecordSeek(nRecno)
-	
-	If ::nCurrentRow <= 0
-		UserException("*** INDEX RESYNC FAILED - RECNO "+cValToChar(nRecno)+" ***")
+	If ::oDBF:Eof()
+		// Nao posso sincronizar em EOF()
+		Return
 	Endif
-	
-Endif
+		
+	// Pega o numero do RECNO atual do DBF
+	nRecno := ::oDBF:Recno()
+		
+	IF ::aIndexData[::nCurrentRow][2] != nRecno
+		
+		// Se o RECNO da posicao de indice nao está sincronizado,
+		// Busca pela posicao correta do indice de addos ordenados
+		// correspondente ao RECNO atual
+		
+		::nCurrentRow := ::RecordSeek(nRecno)
+		
+		If ::nCurrentRow <= 0
+			UserException("*** INDEX RESYNC FAILED - RECNO "+cValToChar(nRecno)+" ***")
+		Endif
+		
+	Endif
 
 Return
 
@@ -133,38 +146,43 @@ Return
 // Cria um indice na memoria usando a expressao
 // enviada como parametro
 
-METHOD CREATEINDEX( cIndexExpr ) CLASS ZMEMINDEX
-Local cIndexBlk
+METHOD CREATEINDEX( cIndexExpr AS Chracter) 		AS Logical	CLASS ZMEMINDEX
 
-// Guarda a expressão original do indice
-::cIndexExpr := cIndexExpr
+	//-- Declaração de Variáveis ----------------------------------------------
+	Local cIndexBlk									AS Chracter
 
-// Monta o CodeBlock para a montagem da linha de dados
-// com a chave de indice
-cIndexBlk := ::oDbf:_BuildFieldBlock( cIndexExpr )
+	//-- Parâmetros da Rotina -------------------------------------------------
+	ParamObg 0		VAR cIndexExpr
 
-// Faz a macro da Expressao
-::bIndexBlock := &(cIndexBlk)
+	// Guarda a expressão original do indice
+	::cIndexExpr := cIndexExpr
 
-// Agora varre a tabela montando o o set de dados para criar o índice
-::aIndexData := {}
+	// Monta o CodeBlock para a montagem da linha de dados
+	// com a chave de indice
+	cIndexBlk := ::oDbf:_BuildFieldBlock( cIndexExpr )
 
-// Coloca a tabela em ordem de regisrtros para a criação do indice
-::oDBF:SetOrder(0)
-::oDBF:ClearFilter()
-::oDBF:GoTop()
+	// Faz a macro da Expressao
+	::bIndexBlock := &(cIndexBlk)
 
-While !::oDBF:Eof()
-	// Array de dados
-	// [1] Chave do indice
-	// [2] RECNO
-	aadd( ::aIndexData , { Eval( ::bIndexBlock , ::oDBF ) , ::oDBF:Recno() } )
-	::oDBF:Skip()
-Enddo
+	// Agora varre a tabela montando o o set de dados para criar o índice
+	::aIndexData := {}
 
-// Sorteia pela chave de indice, usando o RECNO como criterio de desempate
-// Duas chaves iguais, prevalesce a ordem fisica ( o menor recno vem primeiro )
-aSort( ::aIndexData ,,, { |x,y| ( x[1] < y[1] ) .OR. ( x[1] == y[1] .AND. x[2] < y[2] ) } )
+	// Coloca a tabela em ordem de regisrtros para a criação do indice
+	::oDBF:SetOrder(0)
+	::oDBF:ClearFilter()
+	::oDBF:GoTop()
+
+	While !::oDBF:Eof()
+		// Array de dados
+		// [1] Chave do indice
+		// [2] RECNO
+		aadd( ::aIndexData , { Eval( ::bIndexBlock , ::oDBF ) , ::oDBF:Recno() } )
+		::oDBF:Skip()
+	Enddo
+
+	// Sorteia pela chave de indice, usando o RECNO como criterio de desempate
+	// Duas chaves iguais, prevalesce a ordem fisica ( o menor recno vem primeiro )
+	aSort( ::aIndexData ,,, { |x,y| ( x[1] < y[1] ) .OR. ( x[1] == y[1] .AND. x[2] < y[2] ) } )
 
 Return .T.
 
@@ -172,11 +190,13 @@ Return .T.
 // Retorna o primeiro RECNO da ordem atual
 // Caso nao tenha dados, retorna zero
 
-METHOD GetFirstRec() CLASS ZMEMINDEX
-If Len(::aIndexData) > 0
-	::nCurrentRow := 1
-	Return ::aIndexData[::nCurrentRow][2]
-Endif
+METHOD GetFirstRec() AS Numeric		CLASS ZMEMINDEX
+
+	If Len(::aIndexData) > 0
+		::nCurrentRow := 1
+		Return ::aIndexData[::nCurrentRow][2]
+	Endif
+
 Return 0
 
 // ----------------------------------------
@@ -184,12 +204,14 @@ Return 0
 // Caso já esieta no primeiro registro ou
 // nao tenha dados, retorna zero
 
-METHOD GetPrevRec() CLASS ZMEMINDEX
-If Len(::aIndexData) > 0 .and. ::nCurrentRow > 1
-	::CheckSync()
-	::nCurrentRow--
-	Return ::aIndexData[::nCurrentRow][2]
-Endif
+METHOD GetPrevRec() AS Numeric		CLASS ZMEMINDEX
+
+	If Len(::aIndexData) > 0 .and. ::nCurrentRow > 1
+		::CheckSync()
+		::nCurrentRow--
+		Return ::aIndexData[::nCurrentRow][2]
+	Endif
+
 Return 0
 
 // ----------------------------------------
@@ -197,42 +219,46 @@ Return 0
 // Caso nao tenha dados ou tenha chego em EOF
 // retorna zero
 
-METHOD GetNextRec() CLASS ZMEMINDEX
-If ::nCurrentRow < Len(::aIndexData)
-	::CheckSync()
-	::nCurrentRow++
-	Return ::aIndexData[::nCurrentRow][2]
-Endif
+METHOD GetNextRec() AS Numeric		CLASS ZMEMINDEX
+
+	If ::nCurrentRow < Len(::aIndexData)
+		::CheckSync()
+		::nCurrentRow++
+		Return ::aIndexData[::nCurrentRow][2]
+	Endif
+
 Return 0
 
 // ----------------------------------------
 // Retorna o numero do ultimo RECNO da ordem atual
 // Caso nao tenha dados retorna zero
 
-METHOD GetLastRec() CLASS ZMEMINDEX
-If Len(::aIndexData) > 0
-	::nCurrentRow := Len(::aIndexData)
-	Return ::aIndexData[::nCurrentRow][2]
-Endif
+METHOD GetLastRec() AS Numeric		CLASS ZMEMINDEX
+
+	If Len(::aIndexData) > 0
+		::nCurrentRow := Len(::aIndexData)
+		Return ::aIndexData[::nCurrentRow][2]
+	Endif
+
 Return 0
 
 // ----------------------------------------
 // Retorna a expressao de indice original
-METHOD GetIndexExpr() CLASS ZMEMINDEX
-return ::cIndexExpr
+METHOD GetIndexExpr() AS Chracter	CLASS ZMEMINDEX
+Return ::cIndexExpr
 
 // ----------------------------------------
-// REtorna o valor da chave de indice do registro atual
+// Retorna o valor da chave de indice do registro atual
 // Que a tabela esta posicionada
 // Em AdvPL, seria o equivalente a &(Indexkey())
 
-METHOD GetIndexValue() CLASS ZMEMINDEX
+METHOD GetIndexValue() AS Chracter	CLASS ZMEMINDEX
 Return Eval( ::bIndexBlock , ::oDBF )
 
 // ----------------------------------------
-// REtorna o numero do RECNO da posição de indice atual
+// Retorna o numero do RECNO da posição de indice atual
 
-METHOD GetIndexRecno() CLASS ZMEMINDEX
+METHOD GetIndexRecno() AS Numeric	CLASS ZMEMINDEX
 Return ::aIndexData[::nCurrentRow][2]
 
 
@@ -240,38 +266,41 @@ Return ::aIndexData[::nCurrentRow][2]
 // Um registro do dbf foi inserido 
 // Preciso inserir uma nova chave no indice 
 METHOD InsertKey() CLASS ZMEMINDEX
-Local cKeyDBF, nRecDBF
-Local nTop := 1
-Local nBottom := Len(::aIndexData)
-Local nPos
+	
+	//-- Declaração de Variáveis ----------------------------------------------
+	Local cKeyDBF									AS Chracter
+	Local nRecDBF									AS Numeric
+	Local nTop		:= 1							AS Numeric
+	Local nBottom	:= Len(::aIndexData)			AS Numeric
+	Local nPos										AS Numeric
 
-// Valores da chave atual do DBF 
-cKeyDBF := ::GetIndexValue()
-nRecDBF := ::oDBF:Recno()
+	// Valores da chave atual do DBF 
+	cKeyDBF := ::GetIndexValue()
+	nRecDBF := ::oDBF:Recno()
 
-// Busca a posição correta para inserir a chave
-For nPos := nTop to nBottom
-	if ( cKeyDBF >= ::aIndexData[nPos][1])
-	   LOOP
+	// Busca a posição correta para inserir a chave
+	For nPos := nTop to nBottom
+		If ( cKeyDBF >= ::aIndexData[nPos][1])
+			LOOP
+		Endif
+	Next
+
+	// aIndexData
+	// [1] Chave de ordenação 
+	// [2] Numero do recno 
+
+	If nPos > nBottom
+		// Nova chave acrescentada no final
+		aadd(::aIndexData , { cKeyDBF, nRecDBF , nPos } )
+	Else
+	// Nova chave acrescentada na ordem 
+		aadd(::aIndexData,NIL)
+		aIns(::aIndexData,nPos)
+		::aIndexData[nPos] :=  { cKeyDBF, nRecDBF , nPos} 
 	Endif
-Next
 
-// aIndexData
-// [1] Chave de ordenação 
-// [2] Numero do recno 
-
-If nPos > nBottom
-	// Nova chave acrescentada no final
-	aadd(::aIndexData , { cKeyDBF, nRecDBF , nPos } )
-Else
-  // Nova chave acrescentada na ordem 
-	aadd(::aIndexData,NIL)
-	aIns(::aIndexData,nPos)
-	::aIndexData[nPos] :=  { cKeyDBF, nRecDBF , nPos} 
-Endif
-
-// Atualiza  Posicao atual do indice 
-::nCurrentRow := nPos
+	// Atualiza  Posicao atual do indice 
+	::nCurrentRow := nPos
 
 Return
 
@@ -282,126 +311,135 @@ Return
 // na ordem certa.
 
 METHOD UpdateKey() CLASS ZMEMINDEX
-Local cKeyDBF, nRecDBF
-Local cKeyIndex , nRecIndex
-Local nPos
 
-// Valores da chave atual do registro no DBF
-cKeyDBF := ::GetIndexValue()
-nRecDBF := ::oDBF:Recno()
+	//-- Declaração de Variáveis ----------------------------------------------
+	Local cKeyDBF									AS Chracter
+	Local nRecDBF									AS Numeric
+	Local cKeyIndex									AS Chracter
+	Local nRecIndex									AS Numeric
+	Local nPos										AS Numeric
 
-// Valores da chave atual do indice
-cKeyIndex := ::aIndexData[::nCurrentRow][1]
-nRecIndex := ::aIndexData[::nCurrentRow][2]
+	// Valores da chave atual do registro no DBF
+	cKeyDBF := ::GetIndexValue()
+	nRecDBF := ::oDBF:Recno()
 
-IF nRecDBF == nRecIndex
-	IF cKeyDBF == cKeyIndex
-		// Nenhum campo chave alterado
-		// Nada para fazer
-		Return
-	Endif
-Endif
+	// Valores da chave atual do indice
+	cKeyIndex := ::aIndexData[::nCurrentRow][1]
+	nRecIndex := ::aIndexData[::nCurrentRow][2]
 
-// Demove o elemento atual do array de indices
-aDel(::aIndexData,::nCurrentRow)
-
-// Acrescenta na ordem certa 
-For nPos := 1 to len(::aIndexData)-1
-	If cKeyDBF > ::aIndexData[nPos][1]
-		LOOP
-	Endif
-	If cKeyDBF == ::aIndexData[nPos][1]
-		IF nRecDBF > ::aIndexData[nPos][2]
-			LOOP
+	IF nRecDBF == nRecIndex
+		IF cKeyDBF == cKeyIndex
+			// Nenhum campo chave alterado
+			// Nada para fazer
+			Return
 		Endif
 	Endif
-	EXIT
-Next
 
-// Insere na posição correta
-aIns(::aIndexData,nPos)
-::aIndexData[nPos] := { cKeyDBF , nRecDBF }
-::nCurrentRow := nPos
+	// Demove o elemento atual do array de indices
+	aDel(::aIndexData,::nCurrentRow)
+
+	// Acrescenta na ordem certa 
+	For nPos := 1 to len(::aIndexData)-1
+		If cKeyDBF > ::aIndexData[nPos][1]
+			LOOP
+		Endif
+		If cKeyDBF == ::aIndexData[nPos][1]
+			IF nRecDBF > ::aIndexData[nPos][2]
+				LOOP
+			Endif
+		Endif
+		EXIT
+	Next
+
+	// Insere na posição correta
+	aIns(::aIndexData,nPos)
+	::aIndexData[nPos] := { cKeyDBF , nRecDBF }
+	::nCurrentRow := nPos
 
 Return
 
 // ----------------------------------------
 // Realiza uma busca exata pela chave de indice informada
 
-METHOD IndexSeek(cSeekKey) CLASS ZMEMINDEX
-Local nTop := 1
-Local nBottom := Len(::aIndexData)
-Local nMiddle
-Local lFound := .F.
+METHOD IndexSeek(cSeekKey	AS Chracter ) 		AS Numeric		CLASS ZMEMINDEX
 
-If nBottom > 0
-	
-	If cSeekKey < ::aIndexData[nTop][1]
-		// Chave de busca é menor que a primeira chave do indice
-		Return 0
-	Endif
-	
-	If cSeekKey > ::aIndexData[nBottom][1]
-		// Chave de busca é maior que a última chave
-		Return 0
-	Endif
-	
-	While nBottom >= nTop
+	//-- Declaração de Variáveis ----------------------------------------------
+	Local nTop		:= 1						AS Numeric
+	Local nBottom	:= Len(::aIndexData)		AS Numeric
+	Local nMiddle								AS Numeric
+	Local lFound	:= .F.						AS Logical
+
+	//-- Parâmetros da Rotina -------------------------------------------------
+	ParamObg 0		VAR cSeekKey
+
+	If nBottom > 0
 		
-		// Procura o meio dos dados ordenados
-		nMiddle := Int( ( nTop + nBottom ) / 2 )
-		
-		If ::aIndexData[nMiddle][1] = cSeekKey
-			// Operador de igualdade ao comparar a chave do indice
-			// com a chave informada para Busca. O Advpl opr default
-			// considera que ambas sao iguais mesmo que a chave de busca
-			// seja menor, desde que os caracteres iniciais até o tamanho da
-			// chave de busca sejam iguais.
-			lFound := .T.
-			EXIT
-		ElseIf cSeekKey < ::aIndexData[nMiddle][1]
-			// Chave menor, desconsidera daqui pra baixo
-			nBottom := nMiddle-1
-		ElseIf cSeekKey > ::aIndexData[nMiddle][1]
-			// Chave maior, desconsidera daqui pra cima
-			nTop := nMiddle+1
+		If cSeekKey < ::aIndexData[nTop][1]
+			// Chave de busca é menor que a primeira chave do indice
+			Return 0
 		Endif
 		
-	Enddo
-	
-	If lFound
+		If cSeekKey > ::aIndexData[nBottom][1]
+			// Chave de busca é maior que a última chave
+			Return 0
+		Endif
 		
-		// Ao encontrar uma chave, busca pelo menor RECNO
-		// entre chaves repetidas, do ponto atual para cima
-		// enquanto a chave de busca for a mesma.
-		// Compara sempre a chave do indice com a chave de busca
-		// com igualdade simples
-		
-		While ::aIndexData[nMiddle][1] = cSeekKey
-			nMiddle--
-			If nMiddle == 0
+		While nBottom >= nTop
+			
+			// Procura o meio dos dados ordenados
+			nMiddle := Int( ( nTop + nBottom ) / 2 )
+			
+			If ::aIndexData[nMiddle][1] = cSeekKey
+				// Operador de igualdade ao comparar a chave do indice
+				// com a chave informada para Busca. O Advpl opr default
+				// considera que ambas sao iguais mesmo que a chave de busca
+				// seja menor, desde que os caracteres iniciais até o tamanho da
+				// chave de busca sejam iguais.
+				lFound := .T.
 				EXIT
+			ElseIf cSeekKey < ::aIndexData[nMiddle][1]
+				// Chave menor, desconsidera daqui pra baixo
+				nBottom := nMiddle-1
+			ElseIf cSeekKey > ::aIndexData[nMiddle][1]
+				// Chave maior, desconsidera daqui pra cima
+				nTop := nMiddle+1
 			Endif
+			
 		Enddo
 		
-		// A posicao encontrada é a próxima, onde a
-		// chave ainda era igual
-		::nCurrentRow := nMiddle+1
-		
-		// Retorna o RECNO correspondente a esta chave
-		Return ::aIndexData[::nCurrentRow][2]
+		If lFound
+			
+			// Ao encontrar uma chave, busca pelo menor RECNO
+			// entre chaves repetidas, do ponto atual para cima
+			// enquanto a chave de busca for a mesma.
+			// Compara sempre a chave do indice com a chave de busca
+			// com igualdade simples
+			
+			While ::aIndexData[nMiddle][1] = cSeekKey
+				nMiddle--
+				If nMiddle == 0
+					EXIT
+				Endif
+			Enddo
+			
+			// A posicao encontrada é a próxima, onde a
+			// chave ainda era igual
+			::nCurrentRow := nMiddle+1
+			
+			// Retorna o RECNO correspondente a esta chave
+			Return ::aIndexData[::nCurrentRow][2]
+			
+		Endif
 		
 	Endif
-	
-Endif
 
 Return 0
 
 // ----------------------------------------
 // Retorna a posicao do array de indice 
 // que contem este registro
-METHOD RecordSeek(nRecno) CLASS ZMEMINDEX
-Return ascan(::aIndexData , {|x| x[2] == nRecno })
+METHOD RecordSeek(nRecno AS Numeric ) 	AS Numeric	CLASS ZMEMINDEX
+Return aScan(::aIndexData , {|x| x[2] == nRecno })
 
 // ----------------------------------------
 // Fecha o indice aberto
@@ -409,14 +447,13 @@ Return ascan(::aIndexData , {|x| x[2] == nRecno })
 
 METHOD CLOSE() CLASS ZMEMINDEX
 
-::oDBF := NIL
-::cIndexExpr := ''
-::bIndexBlock := NIL
-::nCurrentRow := 0
-::lSetResync := .F.
+	::oDBF := NIL
+	::cIndexExpr := ''
+	::bIndexBlock := NIL
+	::nCurrentRow := 0
+	::lSetResync := .F.
 
-// Zera o array do indice
-aSize( ::aIndexData,0 )
+	// Zera o array do indice
+	aSize( ::aIndexData,0 )
 
 Return
-
