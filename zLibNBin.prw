@@ -37,7 +37,6 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 #INCLUDE 'RWMake.ch'
 #INCLUDE 'Totvs.ch'
 #INCLUDE 'ParmType.ch'
-#INCLUDE 'CXInclude.ch'
 
 //aBits[nI+1] USO DIRETAMENTE ASSIM PARA SER MAIS OTIMIZADO!
 
@@ -104,7 +103,7 @@ Return
 
 // ------------------------------------------------------------------------------------------------
 // Converte buffer de 4 bytes ( 32 Bits ) Big-Endian ( high bit first ) no seu valor numerico  
-USER Function Bin4ToN(cBin4)	AS Numeric
+USER Function Bin4ToN(cBin4	AS Character)	AS Numeric
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local nByte1,nByte2,nByte3,nByte4	AS Numeric
@@ -128,7 +127,7 @@ Return nResult
 
 // ------------------------------------------------------------------------------------------------
 // Converte valor numérico em buffer de 4 bytes ( 32 Bits ) ( High Byte First )
-USER Function NToBin4(nNum)		AS Character
+USER Function NToBin4(nNum	AS Numeric	)		AS Character
 	
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local cBin4 := ''		AS Character

@@ -35,23 +35,25 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 #INCLUDE 'RWMake.ch'
 #INCLUDE 'Totvs.ch'
 #INCLUDE 'ParmType.ch'
-#INCLUDE 'CXInclude.ch'
 
 // ----------------------------------------
 // Converte data no formato AAAAMMDD para Data do AdvPL 
-USER Function ZSTOD(cValue)	AS Date
-Local cOldSet := Set(_SET_DATEFORMAT, 'yyyy:mm:dd')
-Local dRet := CTOD(Substr(cValue,1,4)+":"+Substr(cValue,5,2)+":"+Substr(cValue,7,2))
-Set(_SET_DATEFORMAT, cOldSet)
+USER Function ZSTOD(cValue	AS Character)	AS Date
+	//-- Declaração de Variáveis ----------------------------------------------
+	Local cOldSet	:= Set(_SET_DATEFORMAT, 'yyyy:mm:dd')		AS Character
+	Local dRet		:= CTOD(Substr(cValue,1,4)+":"+Substr(cValue,5,2)+":"+Substr(cValue,7,2))	AS Date
+
+	Set(_SET_DATEFORMAT, cOldSet)
+
 Return dRet
 
     
 // ----------------------------------------
 // Converte Data Juliana em Data AdvPL 
-USER Function ZDate2DJ(dDate)	AS Date
+USER Function ZDate2DJ(dDate	AS Date	)	AS Date
 Return (dDate - ctod("01/01/1980")) + 2444240 
 
 // ----------------------------------------
 // Converte Data Juliana em Data AdvPL 
-USER  Function ZDJ2Date(nDJ)	AS Date
+USER  Function ZDJ2Date(nDJ	AS Numeric	)	AS Date
 Return ctod("01/01/1980") + ( nDJ - 2444240 )

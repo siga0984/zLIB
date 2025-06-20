@@ -37,7 +37,6 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 #INCLUDE 'RWMake.ch'
 #INCLUDE 'Totvs.ch'
 #INCLUDE 'ParmType.ch'
-#INCLUDE 'CXInclude.ch'
 #include 'fileio.ch'
 
 /* ==========================================================
@@ -52,7 +51,7 @@ Observação  Somente leitura implementada
 
 ========================================================== */
 
-CLASS ZDBTFILE FROM LONGNAMECLASS
+CLASS ZDBTFILE //FROM LONGNAMECLASS
 
    PUBLIC DATA oDBF			AS Object
    PUBLIC DATA cFileName	AS Character
@@ -68,7 +67,8 @@ ENDCLASS
               
 // ----------------------------------------------------------
 
-METHOD NEW(_oDBF,_cFileName) CLASS ZDBTFILE
+METHOD NEW(_oDBF		AS Object	,;
+			_cFileName	AS Character) CLASS ZDBTFILE
 
 	//Parametros da rotina-------------------------------------------------------------------------
 	ParamType 0		VAR _oDBF			AS Object
@@ -109,7 +109,7 @@ Return
 
 // ----------------------------------------------------------
 
-METHOD READMEMO(nBlock) CLASS ZDBTFILE
+METHOD READMEMO(nBlock	AS Numeric	) CLASS ZDBTFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local cMemo   := ''					AS Character
@@ -141,8 +141,11 @@ METHOD READMEMO(nBlock) CLASS ZDBTFILE
 Return cMemo
 
 
-METHOD WRITEMEMO( nBlock , cMemo ) CLASS ZDBTFILE
-UserException("*** WRITEMEMO NOT AVAILABLE FOR DBT MEMO FILE ***")
+METHOD WRITEMEMO( 	nBlock 	AS Numeric	,;
+					cMemo	AS Character) CLASS ZDBTFILE
+
+	UserException("*** WRITEMEMO NOT AVAILABLE FOR DBT MEMO FILE ***")
+
 Return
 
 

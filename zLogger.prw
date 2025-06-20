@@ -36,7 +36,6 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 
 #include 'protheus.ch'
 #INCLUDE 'ParmType.ch'
-#INCLUDE 'CXInclude.ch'
 //#include 'zlib.ch' 
 
 
@@ -54,7 +53,7 @@ e ter uma mensagem com detalhes.
 
 ====================================================== */
 
-CLASS ZLOGGER FROM LONGNAMECLASS
+CLASS ZLOGGER //FROM LONGNAMECLASS
 
    PUBLIC DATA cComponent			AS Character
    PUBLIC DATA lDateTime			AS Logical
@@ -73,7 +72,7 @@ ENDCLASS
 // ------------------------------------------------------
 // Cria uma instancia de geração de log para uma classe ou componente
 
-METHOD NEW(cComponent) CLASS ZLOGGER
+METHOD NEW(cComponent	AS Character) CLASS ZLOGGER
 
 	//Parametros da rotina-------------------------------------------------------------------------
 	ParamType 0		VAR cComponent		AS Character
@@ -90,7 +89,7 @@ Return self
 // ------------------------------------------------------
 // Permite associar ao log uma classe de escrita adicional 
 
-METHOD SETWRITER(oWriter)  CLASS ZLOGGER
+METHOD SETWRITER(oWriter	AS Object	)  CLASS ZLOGGER
 	
 	//Parametros da rotina-------------------------------------------------------------------------
 	ParamType 0		VAR oWriter		AS Object
@@ -102,7 +101,7 @@ Return
 // ------------------------------------------------------
 // Habilita ou desabilita o echo em console
 
-METHOD SETECHO(lSet)  CLASS ZLOGGER
+METHOD SETECHO(lSet	AS Logical	)  CLASS ZLOGGER
 
 	//Parametros da rotina-------------------------------------------------------------------------
 	ParamType 0		VAR lSet		AS Logical
@@ -116,7 +115,8 @@ Return
 // Escreve algo no log 
 // Requer a operação ou função, e a mensagem com os detalhes de execução 
 
-METHOD WRITE(cRun,cMsg) CLASS ZLOGGER
+METHOD WRITE(	cRun	AS Character,;
+				cMsg	AS Character) CLASS ZLOGGER
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local cEcho := ''		AS Character
