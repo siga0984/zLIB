@@ -35,7 +35,7 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 
 
 #include 'protheus.ch'
-#INCLUDE 'CXInclude.ch'
+#INCLUDE 'ParmType.ch'
 
 /* ==================================================
 
@@ -50,7 +50,7 @@ Descrição   A partir de um objeto ZISAMFILE, permite
 CLASS ZMEMINDEX //FROM LONGNAMECLASS
 
 	PUBLIC DATA oDBF			AS Object		// Objeto ZISAMFILE relacionado ao índice 
-	PUBLIC DATA cIndexExpr		AS Chracter		// Expressão AdvPL original do índice
+	PUBLIC DATA cIndexExpr		AS Character	// Expressão AdvPL original do índice
 	PUBLIC DATA bIndexBlock		AS CodeBlock	// CodeBlock para montar uma linha de dados do índice
 	PUBLIC DATA aIndexData		AS Array		// Array com os dados do índice ordenado pela chave 
 	PUBLIC DATA nCurrentRow		AS Numeric		// Numero da linha atual do índice 
@@ -65,8 +65,8 @@ CLASS ZMEMINDEX //FROM LONGNAMECLASS
 	PUBLIC METHOD GetNextRec()  			AS Numeric	// Retorna o RECNO do próximo registro do índice
 	PUBLIC METHOD GetLastRec()  			AS Numeric	// Retorna o RECNO do último registro do índice 
 
-	PUBLIC METHOD GetIndexExpr()  			AS Chracter	// Rertorna a expressão de indexação 
-	PUBLIC METHOD GetIndexValue() 			AS Chracter	// Retorna o valor da chave de indice do registro atual 
+	PUBLIC METHOD GetIndexExpr()  			AS Character	// Rertorna a expressão de indexação 
+	PUBLIC METHOD GetIndexValue() 			AS Character	// Retorna o valor da chave de indice do registro atual 
 	PUBLIC METHOD GetIndexRecno() 			AS Numeric	// REtorna o numero do RECNO da posição do índice atual 
 	PUBLIC METHOD IndexSeek()	 			AS Numeric	// Realiza uma busca ordenada por um valor informado 
 	PUBLIC METHOD RecordSeek()				AS Numeric	// REaliza uma busca no indice pelo RECNO 
@@ -85,7 +85,7 @@ ENDCLASS
 METHOD NEW(oDBF	AS Object)	AS Object CLASS ZMEMINDEX
 
 	//-- Parâmetros da Rotina -------------------------------------------------
-	ParamObg 0		VAR oDBF
+	ParamType 0		VAR oDBF		AS Object
 
 	::oDBF 			:= oDBF
 	::cIndexExpr	:= ''
@@ -101,7 +101,7 @@ Return self
 METHOD SetVerbose( lSet AS Logical) CLASS ZMEMINDEX
 	
 	//-- Parâmetros da Rotina -------------------------------------------------
-	ParamObg 0		VAR lSet
+	ParamType 0		VAR lSet		AS Logical
 
 	::lVerbose := lSet
 
@@ -146,13 +146,13 @@ Return
 // Cria um indice na memoria usando a expressao
 // enviada como parametro
 
-METHOD CREATEINDEX( cIndexExpr AS Chracter) 		AS Logical	CLASS ZMEMINDEX
+METHOD CREATEINDEX( cIndexExpr AS Character) 		AS Logical	CLASS ZMEMINDEX
 
 	//-- Declaração de Variáveis ----------------------------------------------
-	Local cIndexBlk									AS Chracter
+	Local cIndexBlk									AS Character
 
 	//-- Parâmetros da Rotina -------------------------------------------------
-	ParamObg 0		VAR cIndexExpr
+	ParamType 0		VAR cIndexExpr		AS Character
 
 	// Guarda a expressão original do indice
 	::cIndexExpr := cIndexExpr
@@ -244,7 +244,7 @@ Return 0
 
 // ----------------------------------------
 // Retorna a expressao de indice original
-METHOD GetIndexExpr() AS Chracter	CLASS ZMEMINDEX
+METHOD GetIndexExpr() AS Character	CLASS ZMEMINDEX
 Return ::cIndexExpr
 
 // ----------------------------------------
@@ -252,7 +252,7 @@ Return ::cIndexExpr
 // Que a tabela esta posicionada
 // Em AdvPL, seria o equivalente a &(Indexkey())
 
-METHOD GetIndexValue() AS Chracter	CLASS ZMEMINDEX
+METHOD GetIndexValue() AS Character	CLASS ZMEMINDEX
 Return Eval( ::bIndexBlock , ::oDBF )
 
 // ----------------------------------------
@@ -268,7 +268,7 @@ Return ::aIndexData[::nCurrentRow][2]
 METHOD InsertKey() CLASS ZMEMINDEX
 	
 	//-- Declaração de Variáveis ----------------------------------------------
-	Local cKeyDBF									AS Chracter
+	Local cKeyDBF									AS Character
 	Local nRecDBF									AS Numeric
 	Local nTop		:= 1							AS Numeric
 	Local nBottom	:= Len(::aIndexData)			AS Numeric
@@ -313,9 +313,9 @@ Return
 METHOD UpdateKey() CLASS ZMEMINDEX
 
 	//-- Declaração de Variáveis ----------------------------------------------
-	Local cKeyDBF									AS Chracter
+	Local cKeyDBF									AS Character
 	Local nRecDBF									AS Numeric
-	Local cKeyIndex									AS Chracter
+	Local cKeyIndex									AS Character
 	Local nRecIndex									AS Numeric
 	Local nPos										AS Numeric
 
@@ -361,7 +361,7 @@ Return
 // ----------------------------------------
 // Realiza uma busca exata pela chave de indice informada
 
-METHOD IndexSeek(cSeekKey	AS Chracter ) 		AS Numeric		CLASS ZMEMINDEX
+METHOD IndexSeek(cSeekKey	AS Character ) 		AS Numeric		CLASS ZMEMINDEX
 
 	//-- Declaração de Variáveis ----------------------------------------------
 	Local nTop		:= 1						AS Numeric
@@ -370,7 +370,7 @@ METHOD IndexSeek(cSeekKey	AS Chracter ) 		AS Numeric		CLASS ZMEMINDEX
 	Local lFound	:= .F.						AS Logical
 
 	//-- Parâmetros da Rotina -------------------------------------------------
-	ParamObg 0		VAR cSeekKey
+//	ParamObg 0		VAR cSeekKey
 
 	If nBottom > 0
 		

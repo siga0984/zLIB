@@ -1,7 +1,6 @@
 #INCLUDE 'RWMake.ch'
 #INCLUDE 'Totvs.ch'
 #INCLUDE 'ParmType.ch'
-#INCLUDE 'CXInclude.ch'
 
 /* ==================================================
 Classe      ZDBFMEMINDEX
@@ -50,7 +49,7 @@ ENDCLASS
 // Construtor do indice em memoria
 // Recebe o objeto da tabela 
 
-METHOD NEW(oDBF) CLASS ZDBFMEMINDEX
+METHOD NEW(oDBF	AS Object) CLASS ZDBFMEMINDEX
 
 	//Inicializa variáveis-------------------------------------------------------------------------
 	::oDBF := oDBF
@@ -76,7 +75,7 @@ Return
 
 // ----------------------------------------
 // Permite ligar ou desligar o modo verbose da classe de indice
-METHOD SetVerbose( lSet ) CLASS ZDBFMEMINDEX
+METHOD SetVerbose( lSet	AS Logical	) CLASS ZDBFMEMINDEX
 
 	//Parametros da rotina-------------------------------------------------------------------------
 	ParamType 0		VAR lSet		AS Logical
@@ -132,7 +131,7 @@ Return
 // A partir da expressão de indexação fornecida, 
 // cria um codeblock para gerar uma linha de dados
 
-METHOD _BuildIndexBlock(cIndexExpr) CLASS ZDBFMEMINDEX
+METHOD _BuildIndexBlock(cIndexExpr	AS Character) CLASS ZDBFMEMINDEX
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local aCampos := {}			AS Array
@@ -172,7 +171,7 @@ Return
 // Cria um indice na memoria usando a expressao 
 // enviada como parametro
 
-METHOD CREATEINDEX( cIndexExpr ) CLASS ZDBFMEMINDEX
+METHOD CREATEINDEX( cIndexExpr	AS Character ) CLASS ZDBFMEMINDEX
 
 	//Parametros da rotina-------------------------------------------------------------------------
 	ParamType 0		VAR cIndexExpr		AS Character
@@ -347,7 +346,7 @@ Return
 // Leva em consideração chaves repetidas buscando 
 // sempre a com menor RECNO 
 
-METHOD IndexSeek(cSeekKey) CLASS ZDBFMEMINDEX
+METHOD IndexSeek(cSeekKey	AS Character) CLASS ZDBFMEMINDEX
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local lFound := .F. 				AS Logical
@@ -427,7 +426,7 @@ Return 0
 // retorna a posicao do array de dados ordenado 
 // ( aIndexData ) que aponta para este RECNO
 
-METHOD RecordSeek(nRecno) CLASS ZDBFMEMINDEX
+METHOD RecordSeek(nRecno	AS Numeric	) CLASS ZDBFMEMINDEX
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local lFound := .F. 				AS Logical

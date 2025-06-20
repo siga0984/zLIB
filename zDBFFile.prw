@@ -35,11 +35,15 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 
 #include 'fileio.ch'
 #include "zLibDec2Hex.ch"
-#include "CXStruct.ch"
 #INCLUDE 'RWMake.ch'
 #INCLUDE 'Totvs.ch'
 #INCLUDE 'ParmType.ch'
-#INCLUDE 'CXInclude.ch'
+
+Static nST_CAMPO	:= 1	AS Integer
+Static nST_TIPO		:= 2	AS Integer
+Static nST_TAMANHO	:= 3	AS Integer
+Static nST_DECIMAL	:= 4	AS Integer
+Static nST_TAMARR	:= 4	AS Integer
 
 /* ===========================================================================
 
@@ -180,7 +184,8 @@ Return "DBF"
 // Apenas recebe o nome do arquivo e inicializa as propriedades
 // Inicializa o ZISAMFILE passando a instancia atual 
 
-METHOD NEW(cFile,oFileDef) CLASS ZDBFFILE 
+METHOD NEW(	cFile	AS Character,;
+			oFileDef	AS Object) CLASS ZDBFFILE 
 
 	//Parametros da rotina-------------------------------------------------------------------------
 	ParamType 0		VAR cFile		AS Character
@@ -208,9 +213,10 @@ Return self
 // Caso retorne .F. , consulte o ultimo erro usando GetErrorStr() / GetErrorCode()
 // Por hora apenas a abertura possui tratamento de erro 
 
-METHOD OPEN(lExclusive,lCanWrite) CLASS ZDBFFILE 
+METHOD OPEN(lExclusive	AS Logical	,;
+			lCanWrite	AS Logical	) CLASS ZDBFFILE 
 
-	//Declaracao de variaveis----------------------------------------------------------------------
+	//-- Declaração de Variáveis ----------------------------------------------
 	Local nFMode := 0		AS Numeric
 
 	//---------------------------------------------------------------------------------------------
@@ -370,7 +376,7 @@ Return .F.
 // Recebe a estrutura e a partir dela cria a tabela 
 // Se o objeto já está atrelado a uma definição, usa a estrutura da definição 
 
-METHOD CREATE( aStru ) CLASS ZDBFFILE 
+METHOD CREATE( aStru 	AS Array	) CLASS ZDBFFILE 
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local cNewHeader := ''		AS Character
@@ -546,7 +552,7 @@ Return .T.
 // Permite ligar filtro de navegação de registros deletados
 // Defaul = desligado
 
-METHOD SetDeleted( lSet ) CLASS ZDBFFILE 
+METHOD SetDeleted( lSet	AS Logical) CLASS ZDBFFILE 
 	
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local lOldSet := ::lSetDeleted		AS Logical
@@ -875,7 +881,7 @@ Return NIL
 // ------------------------------------------------------------------------------------------------
 // Alimenta o array de campos diretamente, para acelerar a gravação
 
-METHOD FieldBulk(aValores) CLASS ZDBFFILE 
+METHOD FieldBulk(aValores	AS Array	) CLASS ZDBFFILE 
 
 	//Parametros da rotina-------------------------------------------------------------------------
 	ParamType 0		VAR aValores		AS Array
@@ -1039,8 +1045,8 @@ Return .T.
 // e confirmar tudo com UPDATE 
 // O array aValores se informado já preenche todos os dados necessários para a gração do registro
 //  dispensando os FieldPuts e Update posterior.
-METHOD Insert(	aValores	,;	//01 aValores
-				lDeleted	);	//02 lDeleted
+METHOD Insert(	aValores	AS Array	,;	//01 aValores
+				lDeleted	AS Logical	);	//02 lDeleted
 					CLASS ZDBFFILE
 
 	//Parametros da rotina-------------------------------------------------------------------------
@@ -1307,7 +1313,7 @@ Return
 // Lë um campo MEMO de um arquivo DBT 
 // baseado no numero do bloco rececido como parametro 
 
-METHOD _ReadMemo(nBlock) CLASS ZDBFFILE
+METHOD _ReadMemo(nBlock	AS Numeric) CLASS ZDBFFILE
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local cMemo := '' 	AS Character
@@ -1341,14 +1347,12 @@ METHOD Destroy()  CLASS ZDBFFILE
 
 	::Close()
 
-	If Destroy <> NIL
-		oFileDef:Destroy()
+	If ::oFileDef <> NIL
+		::oFileDef:Destroy()
 	EndIf
 	FreeObj(::oMemoFile)
 	FreeObj(::oLogger)
 	FreeObj(::oFileDef)
-
-	_Super:Destroy()
 
 Return
 

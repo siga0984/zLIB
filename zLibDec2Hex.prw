@@ -36,7 +36,6 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
 #INCLUDE 'RWMake.ch'
 #INCLUDE 'Totvs.ch'
 #INCLUDE 'ParmType.ch'
-#INCLUDE 'CXInclude.ch'
 
 /* ======================================================
 
@@ -50,7 +49,7 @@ Funcoes de Conversao Decimal / Hexa e vice-versa
 
 STATIC __aHEX := {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'}
 
-USER Function ZDEC2HEX(nByte)	AS Character
+USER Function ZDEC2HEX(nByte	AS Numeric	)	AS Character
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local nL,nH			AS Numeric
@@ -66,7 +65,7 @@ Return __aHEX[nH+1]+__aHEX[nL+1]
 
 // ----------------------------------------
 // Converte um valor hexadecimal de 00 a FF para decimal
-USER  Function ZHEX2DEC(cHex)	AS Numeric
+USER  Function ZHEX2DEC(cHex	AS Numeric	)	AS Numeric
 
 	//Declaracao de variaveis----------------------------------------------------------------------
 	Local nH,nL			AS Numeric
